@@ -3,6 +3,7 @@
 
 import { Engine, fetchRuleset } from './engine.js';
 import { View, cellCenter } from './view.js';
+import { format, duration } from './numbers.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -61,6 +62,20 @@ async function boot() {
   // For the console and for tests: window.openinn.send({ do: 'dig', x: 6, y: 1, room: 'hall' }).
   window.openinn = { send, state: () => state, view, setSpeed, setLevel, catalog, engine, restart };
   setLevel(0);
+  if (catalog.idle) {
+    setupLedger();
+    // Time away: the ledger catches up (up to its offline_max).
+    const at = +localStorage.getItem(`${SAVE_KEY}:at`);
+    if (saved && at && commands) {
+      const away = Math.min(Date.now() - at, catalog.idle.offline_max * 1000);
+      if (away > 5000) {
+        const before = global(catalog.inn.money);
+        send({ do: 'wait', ms: Math.round(away) });
+        const got = global(catalog.inn.money) - before;
+        toast(`Away ${duration(away / 1000)}: ${got >= 0 ? '+' : ''}${format(got)} ${money()}`);
+      }
+    }
+  }
   if (!localStorage.getItem(`openinn:seen-help:${GAME}`)) {
     $('help').hidden = false;
     localStorage.setItem(`openinn:seen-help:${GAME}`, '1');
@@ -139,7 +154,10 @@ function apply(res, save) {
   render(before);
   if (save) {
     const s = engine.save();
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch { /* full: keep playing */ }
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+      localStorage.setItem(`${SAVE_KEY}:at`, String(Date.now()));
+    } catch { /* full: keep playing */ }
   }
 }
 
@@ -182,6 +200,7 @@ function setupHud() {
     b.dataset.cost = r.cost;
     digs.appendChild(b);
   }
+  for (const [b, r] of [...digs.children].map((b, i) => [b, catalog.rooms[i]])) b.dataset.room = r.id;
   const units = $('unitButtons');
   for (const u of catalog.units) {
     const where = u.rooms.map((id) => catalog.rooms.find((r) => r.id === id)?.name).join(', ');
@@ -189,6 +208,7 @@ function setupHud() {
     b.title = `${u.name}: in ${where || 'any room'}${u.seats ? `, seats ${u.seats}` : ''}`;
     b.onclick = () => setTool(tool?.kind === 'build' && tool.unit === u.id ? null : { kind: 'build', unit: u.id }, b);
     b.dataset.cost = u.cost;
+    b.dataset.unit = u.id;
     units.appendChild(b);
   }
   $('removeTool').onclick = () => setTool(tool?.kind === 'remove' ? null : { kind: 'remove' }, $('removeTool'));
@@ -376,11 +396,23 @@ function render(before) {
   $('nightTools').hidden = state.build;
   $('nightBar').hidden = !state.phase_length;
   if (state.phase_length) $('nightFill').style.width = `${(100 * state.phase_tick) / state.phase_length}%`;
-  document.querySelectorAll('#tools button.tool[data-cost]').forEach((b) => { b.disabled = +b.dataset.cost > gold + 1e-9; });
+  const locked = new Set(state.locked || []);
+  document.querySelectorAll('#tools button.tool[data-cost]').forEach((b) => {
+    const lock = locked.has(b.dataset.unit) || locked.has(b.dataset.room);
+    b.disabled = lock || +b.dataset.cost > gold + 1e-9;
+    b.classList.toggle('locked', lock);
+    if (lock) b.title = `Not unlocked yet: see the ${ledgerName()}`;
+  });
   if (!state.build && tool) setTool(null);
   if (before && before.build !== state.build && state.build) setTool(null);
   showHints();
   renderGuests();
+  renderLedger();
+  if (before && state.run !== before.run) {
+    $('over').hidden = true;
+    setLevel(0);
+    view.focus(state.cells);
+  }
   if (state.over && !before?.over) showOver();
 }
 
@@ -475,6 +507,21 @@ function logEvent(e) {
       text = 'The season is over.';
       cls = 'phase';
       break;
+    case 'idle': {
+      const ev = e.event;
+      const label = ev.label || thingLabel(ev.id);
+      if (ev.kind === 'milestone') { text = `★ ${label}`; cls = 'good'; }
+      else if (ev.kind === 'upgrade') text = `${ledgerName()}: ${label}`;
+      else if (ev.kind === 'unlock') text = `New in the ${ledgerName().toLowerCase()}: ${label}`;
+      else if (ev.kind === 'prestige') { text = `${label}!`; cls = 'phase'; }
+      else return;
+      if (ev.kind !== 'unlock') markLedger();
+      break;
+    }
+    case 'restart':
+      text = `A new ${catalog.inn.name} opens (run ${e.run + 1}).`;
+      cls = 'phase';
+      break;
     default:
       return;
   }
@@ -516,6 +563,122 @@ function toast(text) {
   toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
 
+// ---------- the ledger: the incremental layer ----------
+
+let ledgerTab = false;
+let lastWait = performance.now();
+
+function ledgerName() {
+  return look.idlename || 'Ledger';
+}
+
+function thingLabel(id) {
+  const v = state?.idle;
+  if (!v) return id;
+  for (const k of ['resources', 'generators', 'upgrades', 'actions', 'milestones', 'prestiges']) {
+    const t = v[k].find((x) => x.id === id);
+    if (t) return t.label;
+  }
+  return id;
+}
+
+function setupLedger() {
+  $('tabs').hidden = false;
+  $('tabLedger').textContent = ledgerName();
+  $('tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    ledgerTab = b.dataset.tab === 'ledger';
+    $('tabs').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    $('ledger').hidden = !ledgerTab;
+    $('innTools').hidden = ledgerTab;
+    if (ledgerTab) $('tabLedger').textContent = ledgerName();
+    renderLedger();
+  });
+  $('ledger').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-cmd]');
+    if (!b) return;
+    const cmd = { cmd: b.dataset.cmd, id: b.dataset.id };
+    if (cmd.cmd === 'prestige' && !confirm(`${b.dataset.label}? ${b.dataset.text}`)) return;
+    send({ do: 'idle', cmd });
+  });
+  // The ledger runs in real time while the night is not ticking (the day, a pause, a season
+  // that is over); at night it runs with the inn's ticks.
+  setInterval(() => {
+    const now = performance.now();
+    const ms = Math.round(now - lastWait);
+    lastWait = now;
+    if (timer !== null || ms <= 0) return;
+    const res = engine.apply({ do: 'wait', ms: Math.min(ms, catalog.idle.offline_max * 1000) });
+    if (!res.error) apply(res, true);
+  }, 1000);
+}
+
+function markLedger() {
+  if (!ledgerTab && !$('tabLedger').querySelector('.dot')) $('tabLedger').insertAdjacentHTML('beforeend', '<span class="dot"></span>');
+}
+
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+function costText(list) {
+  return (list || []).map((c) => `${format(c.amount)} ${esc(thingLabel(c.res))}`).join(', ');
+}
+
+function renderLedger() {
+  const v = state?.idle;
+  if (!v || !ledgerTab) return;
+  const vis = (x) => x.visible;
+  const out = [];
+  out.push('<div class="res">');
+  for (const r of v.resources.filter(vis)) {
+    const rate = +r.rate;
+    out.push(`<span>${esc(r.label)}</span><b>${format(r.amount)}</b>`);
+    if (Math.abs(rate) > 1e-9) out.push(`<span class="rate">${rate > 0 ? '+' : ''}${format(rate)} a second</span>`);
+  }
+  out.push('</div>');
+  const acts = v.actions.filter(vis);
+  if (acts.length) {
+    out.push('<h3>Now</h3>');
+    for (const a of acts) {
+      const on = a.active_for > 0;
+      const wait = a.ready_in > 0 ? ` · ready in ${duration(a.ready_in)}` : '';
+      out.push(`<button class="row${on ? ' active' : ''}" data-cmd="act" data-id="${esc(a.id)}" ${a.can ? '' : 'disabled'}>
+        <span class="n">${esc(a.label)}</span><span class="k">${on ? duration(a.active_for) : ''}</span>
+        <span class="t">${esc(a.text)}${wait}</span></button>`);
+    }
+  }
+  const gens = v.generators.filter(vis);
+  if (gens.length) {
+    out.push('<h3>Hire</h3>');
+    for (const g of gens) {
+      out.push(`<button class="row" data-cmd="buy" data-id="${esc(g.id)}" ${g.can ? '' : 'disabled'}>
+        <span class="n">${esc(g.label)}</span><span class="k">${g.owned}</span>
+        <span class="t">${esc(g.text)}</span><span class="c">${costText(g.cost)}</span></button>`);
+    }
+  }
+  const ups = v.upgrades.filter((u) => u.visible && !u.bought);
+  if (ups.length) {
+    out.push('<h3>Improve</h3>');
+    for (const u of ups) {
+      out.push(`<button class="row" data-cmd="buy" data-id="${esc(u.id)}" ${u.can ? '' : 'disabled'}>
+        <span class="n">${esc(u.label)}</span><span class="k"></span>
+        <span class="t">${esc(u.text)}</span><span class="c">${costText(u.cost)}</span></button>`);
+    }
+  }
+  const miles = v.milestones.filter(vis);
+  if (miles.length) {
+    const done = miles.filter((m) => m.done);
+    const next = miles.find((m) => !m.done);
+    out.push(`<div class="miles">★ <b>${done.length}/${miles.length}</b>${next ? ` · next: ${esc(next.label)}` : ''}</div>`);
+  }
+  for (const p of v.prestiges.filter(vis)) {
+    out.push(`<button class="row sell" data-cmd="prestige" data-id="${esc(p.id)}" data-label="${esc(p.label)}" data-text="${esc(p.text)}" ${p.can ? '' : 'disabled'}>
+      <span class="n">${esc(p.label)}</span><span class="k">${p.count ? '×' + p.count : ''}</span>
+      <span class="t">${esc(p.text)}</span><span class="c">gives ${costText(p.gain) || 'nothing yet'}</span></button>`);
+  }
+  $('ledger').innerHTML = out.join('');
+}
+
 function showOver() {
   stopNight();
   const s = state.stats;
@@ -526,7 +689,8 @@ function showOver() {
     <tr><td>Served</td><td>${s.served}</td></tr>
     <tr><td>Left happy</td><td>${s.happy}</td></tr>
     <tr><td>Left angry</td><td>${s.angry}</td></tr>
-    <tr><td>Earned</td><td>${Math.floor(s.earned)} ${money()}</td></tr></table>`;
+    <tr><td>Earned</td><td>${Math.floor(s.earned)} ${money()}</td></tr></table>
+    ${catalog.idle ? `<p class="small">The ${ledgerName().toLowerCase()} runs on: sell the inn there to start a grander one.</p>` : ''}`;
   $('over').hidden = false;
 }
 

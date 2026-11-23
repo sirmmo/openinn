@@ -28,6 +28,12 @@
   </header>
 
   <aside id="tools" class="card">
+    <div class="tabs" id="tabs" hidden>
+      <button data-tab="inn" class="on" id="tabInn">Inn</button>
+      <button data-tab="ledger" id="tabLedger">Ledger</button>
+    </div>
+    <div id="ledger" hidden></div>
+    <div id="innTools">
     <div id="buildTools">
       <h3>Dig</h3>
       <div class="grid" id="digButtons"></div>
@@ -48,6 +54,7 @@
       </div>
       <p class="hint">The rooms run themselves at night. Click a guest to see what they want, or show a troublemaker the door.</p>
       <div id="guestList"></div>
+    </div>
     </div>
   </aside>
 

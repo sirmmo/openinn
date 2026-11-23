@@ -1,0 +1,149 @@
+# The Slow Orbit's contracts. Credits are the ring's own (inn.inn: `share Credits`); Served and
+# Standing come from the ring (`feed`); refits and the hail act on it through inn.inn's `idle`.
+
+resource Credits
+    text The ring's account: the lounge's takings, and what its contracts bring in.
+    view color #f29b38
+end
+
+resource Served
+    text Guests served, ever.
+    hidden
+end
+
+resource Standing
+    text The ring's standing with the shipping lanes: one for every guest who leaves happy.
+    view color #5ee0c0
+end
+
+resource Charters
+    text Kept when you sell the ring: every charter makes the contracts 10% faster and prices 5% higher.
+    show if Charters > 0
+    boost all 1 + $charter_boost * Charters
+    view color #9fc3ff
+end
+
+# ---------- contracts ----------
+
+generator Drone
+    label Cargo drone
+    text Hauls freight to passing freighters: credits, on shift and off, here or away.
+    cost Credits $drone_cost * $growth ^ owned
+end
+
+rule haul
+    appliesTo Drone
+    out Credits $drone_rate
+end
+
+generator Relay
+    label Comms relay
+    text Advertises the ring down the shipping lanes: standing.
+    cost Credits $relay_cost * 1.2 ^ owned
+    show if ever(Standing) >= 3
+end
+
+rule advertise
+    appliesTo Relay
+    out Standing $relay_rate
+end
+
+generator Claim
+    label Mining claim
+    text A share in a belt claim: a lot of credits.
+    cost Credits $claim_cost * 1.18 ^ owned
+    show if ever(Served) >= 60
+end
+
+rule mine
+    appliesTo Claim
+    out Credits $claim_rate
+end
+
+# ---------- refits (inn.inn says what they do to the ring) ----------
+
+upgrade Beacon
+    label A docking beacon
+    text More ships find the ring: guests come a quarter as often again.
+    cost Credits 80
+end
+
+upgrade Berths
+    label Cabin berths
+    text You can fit cabin berths in the cabins.
+    cost Credits 120
+    show if ever(Served) >= 10
+end
+
+upgrade Still
+    label A nebula still
+    text Fizz sells for half as much again.
+    cost Credits 150
+    show if ever(Served) >= 15
+end
+
+upgrade Couches
+    label Grav couches
+    text Guests wait half as long again before they give up.
+    cost Credits 100
+    show if ever(Served) >= 20
+end
+
+upgrade Flavours
+    label Flavour cartridges
+    text Printed meals sell for 40% more.
+    cost Credits 200
+    show if ever(Served) >= 30
+end
+
+upgrade Firmware
+    label Fast-charge firmware
+    text Recharges sell for half as much again.
+    cost Credits 160
+    show if ever(Served) >= 25
+end
+
+upgrade Swarm
+    label Drone swarm logic
+    text Cargo drones haul twice as much.
+    cost Credits 300
+    if Drone >= 5
+    show if Drone >= 3
+    boost Drone 2
+end
+
+# ---------- the hail ----------
+
+action hail
+    label Broadcast a hail
+    text Twice as many ships dock for the next 30 seconds of station night.
+    cooldown 120
+    lasts 30
+end
+
+# ---------- milestones ----------
+
+milestone fifty
+    label Fifty served
+    text The contracts run a quarter faster.
+    if ever(Served) >= 50
+    boost all 1.25
+    view kind level
+end
+
+milestone lanes
+    label Known down the lanes
+    text Relays reach twice as far.
+    if ever(Standing) >= 25
+    boost Relay 2
+    view kind level
+end
+
+# ---------- selling the ring ----------
+
+prestige charter
+    label Sell the ring's charter
+    text Sell the charter and fit out a bigger ring: the building, the credits and the contracts start over; charters stay.
+    gain Charters floor(sqrt(total(Standing) / 5))
+    keep Charters
+end

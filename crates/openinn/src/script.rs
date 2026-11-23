@@ -11,16 +11,93 @@
 //! service ale          # what a unit gives a guest for a need, and what it takes
 //! guest adventurer     # a kind of guest: purse, needs, dislikes, when they come
 //! look dungeon         # how a client draws the inn: models, colours, words (the engine ignores it)
+//! idle ledger          # the inn's incremental layer: an OpenIdle game, and how it meets the inn
 //! ```
+//!
+//! The incremental layer is an [OpenIdle](https://github.com/sirmmo/openidle) game in the same
+//! folder (`idle.toml`, which is OpenIdle's `game.toml`, `params.toml` and `*.idle` scripts); the
+//! `idle` block says how it and the inn meet (see [`IdleBridge`]).
 //!
 //! Every name is declared before it is used, and every error names its file and line.
 
 use glassbox::{compile, number, split_blocks, tokenize, Block, Cmp, Error, Line, Rules, Scope};
 
 /// OpenInn's block kinds, compiled here; everything else goes to GlassBox.
-pub const HOST_KINDS: [&str; 9] = [
-    "inn", "phase", "layer", "room", "unit", "need", "service", "guest", "look",
+pub const HOST_KINDS: [&str; 10] = [
+    "inn", "phase", "layer", "room", "unit", "need", "service", "guest", "look", "idle",
 ];
+
+/// What, in the inn, feeds a resource of the incremental layer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FeedEvent {
+    /// A guest came in.
+    Arrived,
+    /// A guest was served (the amount is per service).
+    Served,
+    /// Money a service brought in (the amount multiplies the price).
+    Earned,
+    /// A guest left happy, or angry.
+    Happy,
+    Angry,
+    /// A night ended.
+    Night,
+}
+
+/// Something the incremental layer locks until an expression holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lockable {
+    Unit(usize),
+    Room(usize),
+}
+
+/// How the inn and its incremental layer (an OpenIdle game, played by one player) meet:
+///
+/// ```text
+/// idle ledger
+///     player inn                  # the OpenIdle player that is the inn (default: inn)
+///     tick 0.25                   # seconds of the idle game per tick of the night
+///     share Gold                  # one resource for both: the inn's global and the idle game's
+///     feed Served served          # the idle resource Served gets 1 for every guest served
+///     feed Takings earned 1       # ... the price of every service
+///     feed Renown happy           # ... 1 for every guest who leaves happy (`angry`, `arrived`, `night`)
+///     price ale 1 + 0.5 * Stout   # the ale's price, times this (an OpenIdle expression)
+///     price * 1 + 0.1 * Legend    # every price, times this
+///     arrive 1 + Bell             # the chance of a guest, times this
+///     patience 1 + 0.5 * Benches  # how long guests wait, times this
+///     unlock bed Featherbeds      # the unit (or room) can be built only while this holds
+///     set Fame Renown             # the inn's global Fame is this, after every step
+///     restart sell                # taking this prestige sells the inn: the building starts over
+/// end
+/// ```
+#[derive(Clone, Debug, Default)]
+pub struct IdleBridge {
+    pub id: String,
+    pub player: String,
+    pub tick: f64,
+    /// (inn global, idle resource)
+    pub share: Vec<(usize, String)>,
+    /// (idle resource, what feeds it, how much)
+    pub feeds: Vec<(String, FeedEvent, f64)>,
+    /// (service, or every service, expression)
+    pub prices: Vec<(Option<usize>, String)>,
+    pub arrive: Vec<String>,
+    pub patience: Vec<String>,
+    pub unlocks: Vec<(Lockable, String)>,
+    /// (inn global, expression)
+    pub sets: Vec<(usize, String)>,
+    /// Prestiges that start the building over.
+    pub restart: Vec<String>,
+}
+
+/// An incremental layer's OpenIdle game.
+#[derive(Clone)]
+pub struct IdleGame(pub std::sync::Arc<openidle::Game>);
+
+impl std::fmt::Debug for IdleGame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "IdleGame({})", self.0.name)
+    }
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct InnDef {
@@ -174,6 +251,9 @@ pub struct Ruleset {
     pub layer_colours: Vec<(String, String)>,
     /// The `look` block's lines, `(key, rest of the line)`: hints for clients, unread here.
     pub look: Vec<(String, String)>,
+    /// The incremental layer, if the ruleset has one.
+    pub idle: Option<IdleBridge>,
+    pub idle_game: Option<IdleGame>,
     pub warnings: Vec<String>,
 }
 
@@ -192,9 +272,26 @@ impl Ruleset {
     }
 }
 
+/// Whether a file belongs to the inn (`*.inn`, `*.gbx`) or to its incremental layer
+/// (`idle.toml`, `params.toml`, `*.idle`).
+pub fn is_inn_file(name: &str) -> bool {
+    name.ends_with(".inn") || name.ends_with(".gbx")
+}
+
+pub fn is_idle_file(name: &str) -> bool {
+    name == "idle.toml" || name == "params.toml" || name.ends_with(".idle")
+}
+
 /// Compiles a ruleset from `(file name, text)` pairs, in order. OpenInn's declarations are read
-/// first, from every file, so GlassBox rules can name units declared in any file.
-pub fn load(files: &[(String, String)]) -> Result<Ruleset, Error> {
+/// first, from every file, so GlassBox rules can name units declared in any file. The incremental
+/// layer's files go to OpenIdle.
+pub fn load(all: &[(String, String)]) -> Result<Ruleset, Error> {
+    let files: Vec<(String, String)> = all
+        .iter()
+        .filter(|(n, _)| is_inn_file(n))
+        .cloned()
+        .collect();
+    let files = &files[..];
     let mut kinds: Vec<&str> = glassbox::KINDS.to_vec();
     kinds.extend_from_slice(&HOST_KINDS);
     let mut blocks: Vec<(String, Block)> = Vec::new();
@@ -222,18 +319,20 @@ pub fn load(files: &[(String, String)]) -> Result<Ruleset, Error> {
         let (w, _) = compile(&mut rs.rules, name, text, &HOST_KINDS)?;
         rs.warnings.extend(w);
     }
-    for kind in ["inn", "phase", "service", "guest", "look"] {
+    for kind in ["inn", "phase", "service", "guest", "look", "idle"] {
         for (f, b) in blocks.iter().filter(|(_, b)| b.kind == kind) {
             match kind {
                 "inn" => inn(&mut rs, f, b)?,
                 "phase" => phase(&mut rs, f, b)?,
                 "service" => service(&mut rs, f, b)?,
                 "look" => look(&mut rs, f, b)?,
+                "idle" => idle(&mut rs, f, b)?,
                 _ => guest(&mut rs, f, b)?,
             }
         }
     }
     check(&rs)?;
+    idle_game(&mut rs, all)?;
     Ok(rs)
 }
 
@@ -242,7 +341,11 @@ pub fn load_dir(dir: &std::path::Path) -> Result<Ruleset, Error> {
     let mut names: Vec<_> = std::fs::read_dir(dir)
         .map_err(|e| Error::new(&dir.display().to_string(), 0, e.to_string()))?
         .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| matches!(p.extension().and_then(|x| x.to_str()), Some("gbx" | "inn")))
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| is_inn_file(n) || is_idle_file(n))
+        })
         .collect();
     names.sort();
     let mut files = Vec::new();
@@ -744,6 +847,161 @@ fn look(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
     Ok(())
 }
 
+/// `idle`: how the inn meets its incremental layer. Names in the idle game are checked once it
+/// is read (see [`idle_game`]).
+fn idle(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    if rs.idle.is_some() {
+        return Err(Error::new(f, b.no, "there is more than one idle block"));
+    }
+    let mut d = IdleBridge {
+        id: b.name.clone(),
+        player: "inn".into(),
+        tick: 0.25,
+        ..Default::default()
+    };
+    let rest = |l: &Line, from: usize| l.words[from.min(l.words.len())..].join(" ");
+    for l in &b.lines {
+        match l.words[0].as_str() {
+            "player" => d.player = word(f, l, 1)?.to_string(),
+            "tick" => d.tick = number(f, l, 1)?.max(0.0),
+            "share" => {
+                let g = global(&mut rs.rules, f, l, word(f, l, 1)?)?;
+                let res = l.words.get(2).unwrap_or(&l.words[1]).clone();
+                d.share.push((g, res));
+            }
+            "feed" => {
+                let res = word(f, l, 1)?.to_string();
+                let ev = match word(f, l, 2)? {
+                    "arrived" => FeedEvent::Arrived,
+                    "served" => FeedEvent::Served,
+                    "earned" => FeedEvent::Earned,
+                    "happy" => FeedEvent::Happy,
+                    "angry" => FeedEvent::Angry,
+                    "night" => FeedEvent::Night,
+                    w => {
+                        return Err(err(
+                            f,
+                            l,
+                            format!(
+                            "feed from arrived, served, earned, happy, angry or night, not {w:?}"
+                        ),
+                        ))
+                    }
+                };
+                let amount = if l.words.len() > 3 {
+                    number(f, l, 3)?
+                } else {
+                    1.0
+                };
+                d.feeds.push((res, ev, amount));
+            }
+            "price" => {
+                let target = word(f, l, 1)?;
+                let s = if target == "*" {
+                    None
+                } else {
+                    Some(
+                        rs.services
+                            .iter()
+                            .position(|s| s.id == target)
+                            .ok_or_else(|| err(f, l, format!("there is no service {target:?}")))?,
+                    )
+                };
+                d.prices.push((s, rest(l, 2)));
+            }
+            "arrive" => d.arrive.push(rest(l, 1)),
+            "patience" => d.patience.push(rest(l, 1)),
+            "unlock" => {
+                let id = word(f, l, 1)?;
+                let what = rs
+                    .unit(id)
+                    .map(Lockable::Unit)
+                    .or_else(|| rs.room(id).map(Lockable::Room))
+                    .ok_or_else(|| err(f, l, format!("there is no unit or room {id:?}")))?;
+                d.unlocks.push((what, rest(l, 2)));
+            }
+            "set" => {
+                let g = global(&mut rs.rules, f, l, word(f, l, 1)?)?;
+                d.sets.push((g, rest(l, 2)));
+            }
+            "restart" => d.restart.extend(l.words[1..].iter().cloned()),
+            _ => return Err(unknown(f, b, l)),
+        }
+    }
+    rs.idle = Some(d);
+    Ok(())
+}
+
+/// Reads the incremental layer's OpenIdle game and checks that the `idle` block's names and
+/// expressions make sense in it.
+fn idle_game(rs: &mut Ruleset, all: &[(String, String)]) -> Result<(), Error> {
+    let Some(bridge) = &rs.idle else {
+        return Ok(());
+    };
+    let mut files = std::collections::BTreeMap::new();
+    for (name, text) in all.iter().filter(|(n, _)| is_idle_file(n)) {
+        let key = if name == "idle.toml" {
+            "game.toml"
+        } else {
+            name.as_str()
+        };
+        files.insert(key.to_string(), text.clone());
+    }
+    if !files.contains_key("game.toml") {
+        return Err(Error::new(
+            "idle.toml",
+            0,
+            format!(
+                "idle {}: the ruleset has no idle.toml for its incremental layer",
+                bridge.id
+            ),
+        ));
+    }
+    let game = openidle::Game::from_files(&files, &[]).map_err(|e| {
+        let file = if e.file == "game.toml" {
+            "idle.toml"
+        } else {
+            e.file.as_str()
+        };
+        Error::new(file, e.line, e.msg)
+    })?;
+    let game = std::sync::Arc::new(game);
+    let at = |m: String| Error::new("idle", 0, format!("idle {}: {m}", bridge.id));
+    let is_res = |id: &str| matches!(game.thing(id), Some(openidle::expr::Thing::Res(_)));
+    for (_, res) in &bridge.share {
+        if !is_res(res) {
+            return Err(at(format!("share: the idle game has no resource {res:?}")));
+        }
+    }
+    for (res, _, _) in &bridge.feeds {
+        if !is_res(res) {
+            return Err(at(format!("feed: the idle game has no resource {res:?}")));
+        }
+    }
+    for p in &bridge.restart {
+        if !matches!(game.thing(p), Some(openidle::expr::Thing::Pres(_))) {
+            return Err(at(format!("restart: the idle game has no prestige {p:?}")));
+        }
+    }
+    let mut probe = openidle::World::new(game.clone(), 1);
+    probe.join(&bridge.player, &bridge.player);
+    let exprs = bridge
+        .prices
+        .iter()
+        .map(|(_, e)| ("price", e))
+        .chain(bridge.arrive.iter().map(|e| ("arrive", e)))
+        .chain(bridge.patience.iter().map(|e| ("patience", e)))
+        .chain(bridge.unlocks.iter().map(|(_, e)| ("unlock", e)))
+        .chain(bridge.sets.iter().map(|(_, e)| ("set", e)));
+    for (key, e) in exprs {
+        probe
+            .eval(Some(&bridge.player), e)
+            .map_err(|m| at(format!("{key} {e}: {m}")))?;
+    }
+    rs.idle_game = Some(IdleGame(game));
+    Ok(())
+}
+
 fn check(rs: &Ruleset) -> Result<(), Error> {
     let whole = |m: &str| Error::new("ruleset", 0, m);
     if rs.inn.id.is_empty() {
@@ -786,6 +1044,10 @@ impl Ruleset {
                 "id": m.id, "max": if m.max.is_finite() { m.max } else { 0.0 },
                 "colour": self.layer_colours.iter().find(|(id, _)| *id == m.id).map(|(_, c)| c.clone()),
             })).collect::<Vec<_>>(),
+            "idle": self.idle.as_ref().zip(self.idle_game.as_ref()).map(|(b, g)| json!({
+                "id": b.id, "name": g.0.name, "player": b.player,
+                "tick": g.0.tick, "offline_max": g.0.offline_max, "restart": b.restart,
+            })),
             "look": self.look.iter().map(|(k, v)| (k.clone(), serde_json::Value::from(v.clone()))).collect::<serde_json::Map<_, _>>(),
             "rooms": self.rooms.iter().map(|r| json!({
                 "id": r.id, "name": r.name, "cost": r.cost, "colour": r.colour, "floor": r.floor,

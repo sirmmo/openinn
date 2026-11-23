@@ -9,7 +9,9 @@ use glassbox::{emit, step, Scope, State};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::script::{Ruleset, Test};
+use openidle::{Num, World};
+
+use crate::script::{FeedEvent, Lockable, Ruleset, Test};
 
 /// How a game runs: a season of the ruleset's nights, or on and on with more room to grow.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,6 +140,12 @@ pub enum Command {
         z: usize,
         side: Side,
     },
+    /// A command for the inn's incremental layer (its OpenIdle game): buy a generator or an
+    /// upgrade, use an action, take a prestige (`{"cmd": "buy", "id": "Peddler"}`).
+    Idle { cmd: openidle::Command },
+    /// Time passing outside the night (the day, a pause, time away): the incremental layer runs
+    /// on, the inn does not. In milliseconds, so that waits add up exactly.
+    Wait { ms: u64 },
     /// A whole building at once, free: only as a game's first command (an imported plan).
     Plan {
         cells: Vec<PlanCell>,
@@ -184,6 +192,40 @@ pub enum Event {
         reputation: f64,
         served: u32,
     },
+    /// Something happened in the incremental layer: an OpenIdle event (`kind`: `unlock`,
+    /// `milestone`, `upgrade`, `prestige`; `id`, `label`).
+    Idle {
+        event: serde_json::Value,
+    },
+    /// The inn was sold (a `restart` prestige): the building starts over; this is the new run.
+    Restart {
+        run: u32,
+    },
+}
+
+/// The incremental layer, running: its OpenIdle world, with the inn as its one player.
+struct Idle {
+    world: World,
+    /// The inn's shared globals as last told to the idle game.
+    synced: Vec<f64>,
+    /// Milliseconds of idle time not yet run.
+    carry: u64,
+}
+
+impl std::fmt::Debug for Idle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Idle(tick {})", self.world.tick())
+    }
+}
+
+/// What the incremental layer does to the inn, worked out after every step.
+#[derive(Clone, Debug)]
+struct Effects {
+    /// Each service's price, times this.
+    price: Vec<f64>,
+    arrive: f64,
+    patience: f64,
+    locked: Vec<Lockable>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -246,6 +288,10 @@ pub struct Game {
     pub stats: Stats,
     pub commands: Vec<Command>,
     events: Vec<Event>,
+    idle: Option<Idle>,
+    fx: Effects,
+    /// How many times the inn has been sold and started over.
+    pub runs: u32,
 }
 
 const NONE: usize = usize::MAX;
@@ -266,6 +312,13 @@ impl Game {
     }
 
     pub fn with_mode(rs: Ruleset, seed: &str, mode: Mode) -> Game {
+        let mut g = Game::build(rs, seed, mode);
+        g.attach_idle();
+        g
+    }
+
+    /// The inn without its incremental layer.
+    fn build(rs: Ruleset, seed: &str, mode: Mode) -> Game {
         let (width, height, levels, max_guests) = match mode {
             Mode::Season => (
                 rs.inn.width,
@@ -276,6 +329,7 @@ impl Game {
             Mode::Endless => rs.inn.endless,
         };
         let n = width * height * levels;
+        let rs_services = rs.services.len();
         let gb = State::new(&rs.rules, 0, 1);
         let mut g = Game {
             rs,
@@ -306,6 +360,14 @@ impl Game {
             stats: Stats::default(),
             commands: Vec::new(),
             events: Vec::new(),
+            idle: None,
+            fx: Effects {
+                price: vec![1.0; rs_services],
+                arrive: 1.0,
+                patience: 1.0,
+                locked: Vec::new(),
+            },
+            runs: 0,
         };
         let start = g.rs.inn.start.clone();
         for (r, v) in start {
@@ -424,6 +486,165 @@ impl Game {
         (a.min(b), a.max(b))
     }
 
+    // ---------- the incremental layer ----------
+
+    fn attach_idle(&mut self) {
+        let (Some(b), Some(game)) = (&self.rs.idle, &self.rs.idle_game) else {
+            return;
+        };
+        let mut world = World::new(game.0.clone(), hash(&self.seed));
+        world.join(&b.player, &self.rs.inn.name);
+        world.take_events();
+        let synced = b
+            .share
+            .iter()
+            .map(|(_, res)| {
+                world
+                    .amount(Some(&b.player), res)
+                    .map_or(0.0, |n| n.to_f64())
+            })
+            .collect();
+        self.idle = Some(Idle {
+            world,
+            synced,
+            carry: 0,
+        });
+        // The idle game's shared resources start as the inn's.
+        self.idle_push();
+        self.idle_pull();
+    }
+
+    /// Tells the idle game what the inn's shared globals have become since the last time.
+    fn idle_push(&mut self) {
+        let (Some(b), Some(idle)) = (&self.rs.idle, &mut self.idle) else {
+            return;
+        };
+        for (i, (g, res)) in b.share.iter().enumerate() {
+            let now = self.gb.accounts[0][*g];
+            let d = now - idle.synced[i];
+            if d != 0.0 {
+                let _ = idle.world.credit(Some(&b.player), res, Num::from_f64(d));
+            }
+            idle.synced[i] = now;
+        }
+    }
+
+    /// Brings the idle game's side back: the shared globals, the `set` globals, its effects on
+    /// the inn and its events (a `restart` prestige sells the inn).
+    fn idle_pull(&mut self) {
+        let (Some(b), Some(idle)) = (&self.rs.idle, &mut self.idle) else {
+            return;
+        };
+        let p = Some(b.player.as_str());
+        for (i, (g, res)) in b.share.iter().enumerate() {
+            let v = idle.world.amount(p, res).map_or(0.0, |n| n.to_f64());
+            self.gb.accounts[0][*g] = v;
+            idle.synced[i] = v;
+        }
+        let world = &idle.world;
+        let eval = |e: &str, or: f64| world.eval(p, e).map_or(or, |n| n.to_f64());
+        for (g, e) in &b.sets {
+            self.gb.accounts[0][*g] = eval(e, 0.0);
+        }
+        let mut price = vec![1.0; self.rs.services.len()];
+        for (s, e) in &b.prices {
+            let k = eval(e, 1.0);
+            match s {
+                Some(s) => price[*s] *= k,
+                None => price.iter_mut().for_each(|p| *p *= k),
+            }
+        }
+        self.fx = Effects {
+            price,
+            arrive: b.arrive.iter().map(|e| eval(e, 1.0)).product(),
+            patience: b.patience.iter().map(|e| eval(e, 1.0)).product(),
+            locked: b
+                .unlocks
+                .iter()
+                .filter(|(_, e)| eval(e, 1.0) == 0.0)
+                .map(|(w, _)| *w)
+                .collect(),
+        };
+        let mut restart = false;
+        for e in idle.world.take_events() {
+            if e["kind"] == "prestige" && b.restart.iter().any(|r| e["id"] == r.as_str()) {
+                restart = true;
+            }
+            self.events.push(Event::Idle { event: e });
+        }
+        if restart {
+            self.restart_inn();
+        }
+    }
+
+    /// Runs the idle game on for some milliseconds (it keeps the rest for next time).
+    fn idle_time(&mut self, ms: u64) {
+        if self.idle.is_none() {
+            return;
+        }
+        self.idle_push();
+        if let Some(idle) = self.idle.as_mut() {
+            let tick = ((idle.world.game.tick * 1000.0).round() as u64).max(1);
+            idle.carry += ms;
+            let n = idle.carry / tick;
+            if n > 0 {
+                idle.world.run(n);
+                idle.carry -= n * tick;
+            }
+        }
+        self.idle_pull();
+    }
+
+    /// Something happened in the inn that feeds the idle game.
+    fn feed(&mut self, ev: FeedEvent, amount: f64) {
+        let (Some(b), Some(idle)) = (&self.rs.idle, &mut self.idle) else {
+            return;
+        };
+        for (res, e, k) in &b.feeds {
+            if *e == ev {
+                let _ = idle
+                    .world
+                    .credit(Some(&b.player), res, Num::from_f64(k * amount));
+            }
+        }
+    }
+
+    /// The inn is sold: the building starts over (a new run, with its own dice), the incremental
+    /// layer goes on.
+    fn restart_inn(&mut self) {
+        let runs = self.runs + 1;
+        let mut fresh = Game::build(self.rs.clone(), &format!("{}#{runs}", self.seed), self.mode);
+        fresh.seed = std::mem::take(&mut self.seed);
+        fresh.runs = runs;
+        fresh.idle = self.idle.take();
+        fresh.commands = std::mem::take(&mut self.commands);
+        let mut events = std::mem::take(&mut self.events);
+        events.push(Event::Restart { run: runs });
+        events.append(&mut fresh.events);
+        fresh.events = events;
+        *self = fresh;
+        // The prestige reset the idle game's shared resources: the inn's starting ones go in.
+        if let (Some(b), Some(idle)) = (&self.rs.idle, &mut self.idle) {
+            for (i, (_, res)) in b.share.iter().enumerate() {
+                idle.synced[i] = idle
+                    .world
+                    .amount(Some(&b.player), res)
+                    .map_or(0.0, |n| n.to_f64());
+            }
+        }
+        self.idle_push();
+        self.idle_pull();
+    }
+
+    /// A service's price now.
+    pub fn price(&self, s: usize) -> f64 {
+        (self.rs.services[s].price * self.fx.price[s] * 100.0).round() / 100.0
+    }
+
+    fn locked(&self, w: Lockable) -> bool {
+        self.fx.locked.contains(&w)
+    }
+
     pub fn global(&self, r: usize) -> f64 {
         self.gb.accounts[0][r]
     }
@@ -529,7 +750,7 @@ impl Game {
 
     /// Applies a command; on success it is recorded for the save.
     pub fn apply(&mut self, c: Command) -> Result<Vec<Event>, String> {
-        if self.over {
+        if self.over && !matches!(c, Command::Idle { .. } | Command::Wait { .. }) {
             return Err("the season is over".into());
         }
         let ph = &self.rs.phases[self.phase];
@@ -553,6 +774,9 @@ impl Game {
                     } else {
                         "dig next to the inn".into()
                     });
+                }
+                if self.locked(Lockable::Room(r)) {
+                    return Err(format!("the {} is not unlocked yet", self.rs.rooms[r].name));
                 }
                 self.pay(self.rs.rooms[r].cost)?;
                 self.open_cell(cell, r);
@@ -578,6 +802,9 @@ impl Game {
                         .map(|&r| self.rs.rooms[r].name.as_str())
                         .collect();
                     return Err(format!("a {} belongs in: {}", kind.name, names.join(", ")));
+                }
+                if self.locked(Lockable::Unit(k)) {
+                    return Err(format!("the {} is not unlocked yet", kind.name));
                 }
                 if kind.stairs && self.next_level(cell).is_none() {
                     return Err(format!(
@@ -646,6 +873,21 @@ impl Game {
                     self.rs.inn.wall_cost
                 } / 2.0;
             }
+            Command::Idle { cmd } => {
+                let player = self
+                    .rs
+                    .idle
+                    .as_ref()
+                    .ok_or("this inn has no incremental layer")?
+                    .player
+                    .clone();
+                self.idle_push();
+                if let Some(idle) = self.idle.as_mut() {
+                    idle.world.apply(&player, cmd)?;
+                }
+                self.idle_pull();
+            }
+            Command::Wait { ms } => self.idle_time(*ms),
             Command::Plan {
                 cells,
                 walls,
@@ -682,7 +924,11 @@ impl Game {
                 self.leave(i, "shown the door", false);
             }
         }
-        self.commands.push(c);
+        // Waits in a row are one wait (they add up exactly).
+        match (&c, self.commands.last_mut()) {
+            (Command::Wait { ms }, Some(Command::Wait { ms: before })) => *before += ms,
+            _ => self.commands.push(c),
+        }
         Ok(std::mem::take(&mut self.events))
     }
 
@@ -713,6 +959,7 @@ impl Game {
         }
         if night {
             self.nights_done += 1;
+            self.feed(FeedEvent::Night, 1.0);
             if self.mode == Mode::Season && self.nights_done >= self.rs.inn.nights {
                 self.over = true;
                 self.events.push(Event::Over {
@@ -740,6 +987,10 @@ impl Game {
             self.move_guests();
         }
         step(&self.rs.rules, &self.graph, &mut self.gb);
+        if let Some(b) = &self.rs.idle {
+            let ms = (b.tick * 1000.0).round() as u64;
+            self.idle_time(ms);
+        }
         self.phase_tick += 1;
         if self.phase_tick >= ph.length {
             self.next_phase();
@@ -754,6 +1005,7 @@ impl Game {
         if let Some((r, per)) = ph.arrive_per {
             chance += per * self.global(r).max(0.0);
         }
+        chance *= self.fx.arrive;
         if self.rand() >= chance {
             return;
         }
@@ -803,6 +1055,7 @@ impl Game {
             busy: None,
         });
         self.stats.arrived += 1;
+        self.feed(FeedEvent::Arrived, 1.0);
         self.events.push(Event::Arrive {
             guest: id,
             kind: def.id,
@@ -844,10 +1097,10 @@ impl Game {
         if !self.gb.units[u].alive || self.seated[u] >= self.rs.units[k].seats {
             return None;
         }
-        self.rs.services.iter().position(|s| {
+        self.rs.services.iter().enumerate().position(|(i, s)| {
             s.need == need
                 && s.units.contains(&k)
-                && s.price <= purse
+                && self.price(i) <= purse
                 && s.takes
                     .iter()
                     .all(|t| self.held(u, t.resource) + 1e-9 >= t.amount)
@@ -938,12 +1191,15 @@ impl Game {
         match self.find(cell, need, self.guests[i].purse) {
             Some((step, u, s)) if step == cell => {
                 let sv = self.rs.services[s].clone();
+                let price = self.price(s);
                 for t in &sv.takes {
                     self.take(u, t.resource, t.amount);
                 }
                 let m = self.rs.inn.money;
-                self.gb.accounts[0][m] += sv.price;
-                self.stats.earned += sv.price;
+                self.gb.accounts[0][m] += price;
+                self.stats.earned += price;
+                self.feed(FeedEvent::Served, 1.0);
+                self.feed(FeedEvent::Earned, price);
                 self.stats.served += 1;
                 self.seated[u] += 1;
                 for &(map, amount, radius) in &sv.emits {
@@ -957,7 +1213,7 @@ impl Game {
                 }
                 let (x, y, z) = self.xyz(cell);
                 let g = &mut self.guests[i];
-                g.purse -= sv.price;
+                g.purse -= price;
                 g.waiting = 0;
                 g.busy = Some((u, sv.time, s));
                 self.events.push(Event::Serve {
@@ -966,7 +1222,7 @@ impl Game {
                     x,
                     y,
                     z,
-                    price: sv.price,
+                    price,
                 });
             }
             Some((step, _, _)) => {
@@ -977,7 +1233,7 @@ impl Game {
                 let g = &mut self.guests[i];
                 g.waiting += 1;
                 g.mood = (g.mood - 0.01).max(0.0);
-                if g.waiting >= def.patience {
+                if f64::from(g.waiting) >= f64::from(def.patience) * self.fx.patience {
                     self.leave(
                         i,
                         &format!("no {} to be had", self.rs.needs[need].name.to_lowercase()),
@@ -1000,8 +1256,10 @@ impl Game {
             self.gb.accounts[0][rep] += (g.mood - 0.5) * 2.0 * self.rs.inn.review;
             if g.mood >= 0.5 {
                 self.stats.happy += 1;
+                self.feed(FeedEvent::Happy, 1.0);
             } else {
                 self.stats.angry += 1;
+                self.feed(FeedEvent::Angry, 1.0);
             }
         }
         self.events.push(Event::Leave {
@@ -1092,6 +1350,23 @@ impl Game {
             units,
             guests,
             walls: self.wall_views(),
+            idle: self.idle.as_ref().and_then(|i| {
+                let b = self.rs.idle.as_ref()?;
+                let mut v = i.world.view(&b.player).ok()?;
+                v["offline_max"] = serde_json::json!(i.world.game.offline_max);
+                Some(v)
+            }),
+            prices: (0..self.rs.services.len()).map(|s| self.price(s)).collect(),
+            locked: self
+                .fx
+                .locked
+                .iter()
+                .map(|w| match *w {
+                    Lockable::Unit(k) => self.rs.units[k].id.clone(),
+                    Lockable::Room(r) => self.rs.rooms[r].id.clone(),
+                })
+                .collect(),
+            run: self.runs,
             mode: self.mode,
             grid: [self.width, self.height, self.levels],
             stats: self.stats.clone(),
@@ -1208,6 +1483,14 @@ pub struct Snapshot {
     pub units: Vec<UnitView>,
     pub guests: Vec<GuestView>,
     pub walls: Vec<WallView>,
+    /// The incremental layer, as OpenIdle's view for the inn's player (and `offline_max`).
+    pub idle: Option<serde_json::Value>,
+    /// Each service's price now.
+    pub prices: Vec<f64>,
+    /// Units and rooms the incremental layer has not unlocked yet.
+    pub locked: Vec<String>,
+    /// How many times the inn has been sold and started over.
+    pub run: u32,
     pub mode: Mode,
     /// Width, height and levels of this game's grid.
     pub grid: [usize; 3],

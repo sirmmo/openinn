@@ -175,7 +175,7 @@ unit stairs
     cost 40
     seats 0
     stairs                      # joins this cell to the one below
-    model stairs:0:-0.5:0:0.8
+    model stairs:0:-0.5:0:0.8:-1.02   # sunk: the top step at the floor, the flight going down
 end
 
 unit bunk
@@ -297,6 +297,23 @@ guest goblin
     model character-zombie
 end
 
+# ---------- the ledger: the incremental layer (idle.toml, params.toml, ledger.idle) ----------
+
+idle ledger
+    tick 0.25                            # seconds of the ledger per tick of the night
+    share Gold                           # one purse for the inn and the ledger
+    feed Served served
+    feed Renown happy                    # a happy guest spreads the word
+    feed Renown angry -0.5               # an angry one unsays some of it
+    price ale 1 + 0.5 * Stout
+    price stew 1 + 0.4 * Spices
+    price * 1 + 0.05 * Legend
+    arrive (1 + 0.25 * Signboard) * (1 + bell)
+    patience 1 + 0.5 * Benches
+    unlock bed Featherbeds
+    restart sell                         # selling the inn starts the building over
+end
+
 # ---------- how it looks (read by the browser game, not by the engine) ----------
 
 look dungeon
@@ -307,7 +324,7 @@ look dungeon
     door wall_doorway
     level 7                              # how far apart the levels are drawn
     decor torch_mounted 3 0.8 2.6 0.5    # a torch on every third north wall
-    entrance stairs 0.8 180              # the stairs down from the level above
+    entrance stairs 0.8 0 0.8            # the stairs down from the level above, north of the door
     background 17131f
     ground 2b2433
     grid 4a3f58 3a3146
@@ -317,5 +334,6 @@ look dungeon
     arrive comes down the stairs
     seeds mimic kobold lantern barrel goblet torch cellar dragon tankard rune
     levelname Level
+    idlename Ledger
     help help.html
 end

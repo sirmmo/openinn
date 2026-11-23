@@ -139,3 +139,24 @@ button.icon { width: 40px; height: 40px; border: 2px solid var(--ink); border-ra
   #levels { left: auto; right: 6px; bottom: 6px; transform: none; }
 }
 kbd { font: 600 12px ui-monospace, monospace; border: 1.5px solid var(--ink); border-bottom-width: 2.5px; border-radius: 4px; padding: 0 4px; background: var(--paper2); }
+
+/* The ledger: the inn's incremental layer */
+.tabs { display: flex; gap: 4px; margin: -2px 0 8px; }
+.tabs button { flex: 1; padding: 5px 0; border: 2px solid var(--ink); border-radius: 8px; background: var(--paper2); font-weight: 600; font-size: 14px; }
+.tabs button.on { background: var(--gold); }
+.tabs button .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-left: 5px; vertical-align: 1px; }
+#ledger .res { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 14px; margin-bottom: 6px; }
+#ledger .res b { font-weight: 700; }
+#ledger .res .rate { grid-column: 1 / -1; font-size: 12px; color: var(--muted); margin-top: -3px; }
+#ledger .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 6px; width: 100%; text-align: left; padding: 5px 7px; margin-bottom: 5px; border: 2px solid var(--ink); border-radius: 8px; background: var(--paper2); line-height: 1.2; }
+#ledger .row .n { font-weight: 600; font-size: 13.5px; }
+#ledger .row .k { font-weight: 700; font-size: 13px; }
+#ledger .row .t { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); }
+#ledger .row .c { grid-column: 1 / -1; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+#ledger .row:disabled { opacity: 0.5; cursor: not-allowed; }
+#ledger .row.active { background: var(--gold); }
+#ledger .row.sell { background: #3d2f52; color: var(--paper); }
+#ledger .row.sell .t { color: #d9c9ee; }
+#ledger .miles { font-size: 12.5px; color: var(--muted); margin: 2px 0 6px; }
+#ledger .miles b { color: var(--ink); }
+button.tool.locked .n::after { content: ' 🔒'; font-size: 11px; }

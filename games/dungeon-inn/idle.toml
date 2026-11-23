@@ -1,0 +1,8 @@
+# The Gilded Mimic's ledger: its incremental layer, an OpenIdle game (this is its game.toml).
+# It runs through the day, through pauses and while you are away; at night, with the inn's
+# ticks. inn.inn's `idle` block says how it meets the inn.
+name = "The Gilded Mimic's ledger"
+description = "Peddlers, bards and a fence work for the inn while you are away; upgrades make the inn better; sell it for legend."
+scripts = ["ledger.idle"]
+tick = 1              # seconds
+offline_max = 28800   # eight hours of progress for time away

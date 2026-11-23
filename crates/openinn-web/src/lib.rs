@@ -141,7 +141,13 @@ mod tests {
     fn files() -> Value {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../games/dungeon-inn");
         let mut out = Vec::new();
-        for name in ["economy.gbx", "inn.inn"] {
+        for name in [
+            "economy.gbx",
+            "inn.inn",
+            "idle.toml",
+            "params.toml",
+            "ledger.idle",
+        ] {
             out.push(json!([
                 name,
                 std::fs::read_to_string(dir.join(name)).unwrap()

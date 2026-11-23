@@ -11,12 +11,12 @@ const GUEST_SCALE = 2.6;
 const TAU = Math.PI * 2;
 const LAYER_COLOURS = [0xff9f1c, 0x4fc3f7, 0xe4572e, 0x9ccc65, 0xba68c8];
 
-// A model hint: `name` or `name:x:z:degrees:scale` parts, separated by spaces (x and z in cells
-// from the cell's centre), e.g. `table chair:0:-0.3:0 chair:0:0.3:180`.
+// A model hint: `name` or `name:x:z:degrees:scale:y` parts, separated by spaces (x, z and y in
+// cells from the cell's centre on its floor), e.g. `table chair:0:-0.3:0 chair:0:0.3:180`.
 function parts(hint) {
   return (hint || '').split(/\s+/).filter(Boolean).map((t) => {
-    const [name, x, z, deg, k] = t.split(':');
-    return { name, x: +x || 0, z: +z || 0, rot: ((+deg || 0) * Math.PI) / 180, scale: +k || 1 };
+    const [name, x, z, deg, k, y] = t.split(':');
+    return { name, x: +x || 0, z: +z || 0, y: +y || 0, rot: ((+deg || 0) * Math.PI) / 180, scale: +k || 1 };
   });
 }
 
@@ -29,7 +29,7 @@ function readLook(raw = {}) {
   const [cdir = 'guests', cext = 'glb'] = w('characters');
   const [win, winEvery] = w('window');
   const [decor, decorEvery, dx, dy, dz] = w('decor');
-  const [ent, entScale, entDeg] = w('entrance');
+  const [ent, entScale, entDeg, entOff] = w('entrance');
   const [sky, low] = w('light');
   const [grid1, grid2] = w('grid');
   return {
@@ -40,7 +40,7 @@ function readLook(raw = {}) {
     wall: w('wall')[0],
     window: win ? { name: win, every: num(winEvery, 3) } : null,
     decor: decor ? { name: decor, every: num(decorEvery, 3), x: num(dx, 0), y: num(dy, 2), z: num(dz, 0.5) } : null,
-    entrance: ent ? { name: ent, scale: num(entScale, 1), rot: (num(entDeg, 0) * Math.PI) / 180 } : null,
+    entrance: ent ? { name: ent, scale: num(entScale, 1), rot: (num(entDeg, 0) * Math.PI) / 180, back: num(entOff, 0) } : null,
     background: hex(w('background')[0], 0x17131f),
     ground: w('ground')[0] === 'none' ? null : hex(w('ground')[0], 0x2b2433),
     grid: [hex(grid1, 0x4a3f58), hex(grid2 || grid1, 0x3a3146)],
@@ -170,7 +170,8 @@ export class View {
     if (door) {
       door.scale.setScalar(look.scale * look.entrance.scale);
       door.rotation.y = look.entrance.rot;
-      door.position.copy(cellCenter(ex, ey)).add(new THREE.Vector3(0, 0, -CELL / 2));
+      // On the north edge, moved back (north) by `back` cells.
+      door.position.copy(cellCenter(ex, ey)).add(new THREE.Vector3(0, 0, -CELL / 2 - look.entrance.back * CELL));
       this.scene.add(door);
       this.entranceObj = door;
     }
@@ -186,11 +187,22 @@ export class View {
     const w = gw * CELL;
     const h = gh * CELL;
     if (look.ground !== null) {
+      // A rectangle with a hole at every stairwell going down from the level shown.
+      const shape = new THREE.Shape();
+      shape.moveTo(-40, -40).lineTo(w + 40, -40).lineTo(w + 40, h + 40).lineTo(-40, h + 40).lineTo(-40, -40);
+      for (const k of this.shafts || []) {
+        const [x, y, z] = k.split(',').map(Number);
+        if (z !== this.level) continue;
+        const hole = new THREE.Path();
+        hole.moveTo(x * CELL, y * CELL).lineTo(x * CELL, (y + 1) * CELL).lineTo((x + 1) * CELL, (y + 1) * CELL).lineTo((x + 1) * CELL, y * CELL).lineTo(x * CELL, y * CELL);
+        shape.holes.push(hole);
+      }
+      // The shape is drawn in x and z (as its y), then laid flat.
       const rock = new THREE.Mesh(
-        new THREE.PlaneGeometry(w + 80, h + 80).rotateX(-Math.PI / 2),
-        new THREE.MeshStandardMaterial({ color: look.ground, roughness: 1 }),
+        new THREE.ShapeGeometry(shape).rotateX(Math.PI / 2),
+        new THREE.MeshStandardMaterial({ color: look.ground, roughness: 1, side: THREE.DoubleSide }),
       );
-      rock.position.set(w / 2, -0.15, h / 2);
+      rock.position.y = -0.15;
       rock.receiveShadow = true;
       this.base.add(rock);
     }
@@ -207,7 +219,9 @@ export class View {
 
   // Shows one level: the others are hidden, the ground and the camera move to it.
   setLevel(z) {
+    const moved = this.level !== z;
     this.level = z;
+    if (moved && this.shafts?.size) this.setGrid(this.grid);
     this.base.position.y = levelY(z);
     if (this.entranceObj) this.entranceObj.visible = z === 0;
     const on = (k) => +k.split(',')[2] === z;
@@ -231,7 +245,7 @@ export class View {
     for (const p of parts(hint)) {
       const m = this.model(p.name);
       if (!m) continue;
-      m.position.set(p.x * CELL, 0, p.z * CELL);
+      m.position.set(p.x * CELL, p.y * CELL, p.z * CELL);
       m.rotation.y = p.rot;
       m.scale.setScalar(scale * p.scale);
       g.add(m);
@@ -332,6 +346,19 @@ export class View {
         this.landings.delete(k);
       }
     }
+    // Stairs going down open a shaft: their cell has no floor, the ground a hole.
+    if (this.catalog.inn.down) {
+      const shafts = new Set(view.units.filter((u) => stairs.has(u.unit)).map((u) => `${u.x},${u.y},${u.z}`));
+      for (const [k, c] of this.cells) {
+        c.group.traverse((o) => { if (o.userData.floor) o.visible = !shafts.has(k); });
+      }
+      const key = [...shafts].sort().join(';');
+      if (key !== this.shaftsKey) {
+        this.shafts = shafts;
+        this.shaftsKey = key;
+        this.setGrid(this.grid);
+      }
+    }
     this.syncGuests(view);
     this.view = view;
     this.drawOverlay();
@@ -369,6 +396,7 @@ export class View {
     const floor = this.assemble(room?.floor, look.scale);
     if (floor) {
       floor.position.y = look.floorY;
+      floor.userData.floor = true;
       g.add(floor);
     }
     const tint = new THREE.Mesh(

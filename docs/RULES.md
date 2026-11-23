@@ -202,6 +202,39 @@ end
 The words for money and reputation in the interface are the names of their resources
 (`money Credits`: "3 credits").
 
+## idle: the incremental layer
+
+An inn can have an incremental layer: an [OpenIdle](https://github.com/sirmmo/openidle) game in
+the same folder, played by the inn as its one player. `idle.toml` is OpenIdle's `game.toml` (its
+name, its scripts, the length of its tick and of the progress given for time away), next to
+`params.toml` and `*.idle` scripts in OpenIdle's own language (resources, generators, rules,
+upgrades, actions, milestones, prestiges; see OpenIdle's
+[SCRIPTING.md](https://github.com/sirmmo/openidle/blob/main/docs/SCRIPTING.md)). The `idle`
+block says how the two meet:
+
+```text
+idle ledger
+    tick 0.25                  # seconds of the idle game per tick of the night
+    share Gold                 # one resource for both: the inn's global and the idle game's
+    feed Served served         # the idle resource Served gets 1 for every guest served
+    feed Renown happy          # ... 1 for every guest who leaves happy
+    feed Renown angry -0.5     # ... -0.5 for every angry one (also: arrived, earned, night)
+    price ale 1 + 0.5 * Stout  # the ale's price, times this (an OpenIdle expression)
+    price * 1 + 0.05 * Legend  # every price, times this
+    arrive (1 + 0.25 * Signboard) * (1 + bell)   # the chance of a guest, times this
+    patience 1 + 0.5 * Benches # how long guests wait, times this
+    unlock bed Featherbeds     # the unit (or room) can be built only while this holds
+    set Fame Renown            # the inn's global Fame is this, after every step
+    restart sell               # taking this prestige sells the inn: the building starts over
+end
+```
+
+The idle game runs at night with the inn's ticks, and in real time the rest of the time: through
+the day, a pause, a season that is over, and the time a player is away (up to its
+`offline_max`). Expressions are OpenIdle's, so an upgrade is 1 once bought, an action 1 while it
+lasts, a resource its amount. A `restart` prestige keeps the idle game (what its `keep` lists)
+and starts the inn over: a new building, from the ruleset's `start`, with new dice.
+
 ## Model hints
 
 `floor` in a room and `model` in a unit or guest name models for the client. A unit or room

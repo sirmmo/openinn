@@ -29,6 +29,8 @@ Commands are JSON objects tagged by `do`:
 | `{"do": "wall", "x": 5, "y": 1, "z": 0, "side": "e", "door": false}` | building phase | Puts a wall (or a door) between two dug cells |
 | `{"do": "unwall", "x": 5, "y": 1, "z": 0, "side": "e"}` | building phase | Takes it down; half its cost comes back |
 | `{"do": "plan", "cells": [...], "walls": [...], "stairs": [...]}` | first command only | Builds a whole building at no cost (an import) |
+| `{"do": "idle", "cmd": {"cmd": "buy", "id": "Peddler"}}` | any time | A command for the incremental layer: OpenIdle's `buy`, `act`, `prestige` |
+| `{"do": "wait", "ms": 1000}` | any time | Time passing outside the night: the incremental layer runs on; waits in a row are saved as one |
 | `{"do": "next"}` | phase without a length | Ends the phase (opens the doors) |
 | `{"do": "tick", "n": 1}` | timed phase | Runs the phase on for `n` ticks |
 | `{"do": "eject", "guest": 12}` | open phase | Shows a guest the door, without a review |
@@ -43,6 +45,9 @@ Commands are JSON objects tagged by `do`:
 * `leave` `{guest, kind, mood, why}`: a guest left; `why` is a phrase for the log ("time to
   go", "closing time", "no rest to be had", "shown the door").
 * `over` `{money, reputation, served}`: the season is over.
+* `idle` `{event}`: something happened in the incremental layer (an OpenIdle event: `kind` is
+  `unlock`, `milestone`, `upgrade` or `prestige`, with `id` and `label`).
+* `restart` `{run}`: the inn was sold; the building starts over.
 
 ## Snapshot
 
@@ -56,6 +61,9 @@ Commands are JSON objects tagged by `do`:
 * `units`: `{x, y, z, unit, model, seated}`;
 * `guests`: `{id, kind, x, y, z, mood, purse, needs, busy}` (`busy` names the service being given);
 * `mode` (`season` or `endless`) and `grid`: `[width, height, levels]`;
+* `idle`: the incremental layer as OpenIdle's view for the inn's player (resources, generators,
+  upgrades, actions, milestones, prestiges), with its `offline_max`; `prices`: each service's
+  price now; `locked`: units and rooms not unlocked yet; `run`: how many times the inn was sold;
 * `stats`: `{arrived, served, happy, angry, earned}` for the season.
 
 The ruleset's own `catalog()` lists the inn, phases, layers, rooms, units (with the services

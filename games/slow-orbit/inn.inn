@@ -325,6 +325,24 @@ guest smuggler
     model character-raider
 end
 
+# ---------- contracts: the incremental layer (idle.toml, params.toml, contracts.idle) ----------
+
+idle contracts
+    tick 0.25                            # seconds of the contracts per tick of station night
+    share Credits                        # one account for the ring and its contracts
+    feed Served served
+    feed Standing happy
+    feed Standing angry -0.5
+    price fizz 1 + 0.5 * Still
+    price meal 1 + 0.4 * Flavours
+    price charge 1 + 0.5 * Firmware
+    price * 1 + 0.05 * Charters
+    arrive (1 + 0.25 * Beacon) * (1 + hail)
+    patience 1 + 0.5 * Couches
+    unlock berth Berths
+    restart charter                      # selling the charter starts the building over
+end
+
 # ---------- how it looks (read by the browser game, not by the engine) ----------
 
 look station
@@ -351,6 +369,7 @@ look station
     levelname Deck
     wallname Bulkhead
     doorname Hatch
+    idlename Contracts
     help help.html
     style style.css
 end

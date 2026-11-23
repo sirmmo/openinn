@@ -1,0 +1,9 @@
+# The contracts' numbers, used as $name in contracts.idle.
+growth = 1.15
+drone_cost = 30
+drone_rate = 0.25      # credits a second per cargo drone
+relay_cost = 70
+relay_rate = 0.02      # standing a second per relay
+claim_cost = 600
+claim_rate = 2.5
+charter_boost = 0.1

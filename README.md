@@ -22,6 +22,13 @@ after night on a larger grid. Inns have **levels** joined by stairs, and **inner
 that guests walk round and that stop noise, heat or stale air from spreading. Buildings import
 from and export to the JSON format of watabou's [Dwellings](https://watabou.github.io/dwellings/).
 
+Each inn also has an **incremental layer**, an [OpenIdle](https://github.com/sirmmo/openidle) game
+that the inn plays as its one player: The Gilded Mimic's ledger (peddlers, bards, a loot fence,
+upgrades such as dwarven stout or feather mattresses, a stair bell, and selling the inn for
+legend) and The Slow Orbit's contracts. It shares the inn's purse, is fed by its guests, acts on
+prices, arrivals, patience and what can be built, and runs on through the day and while you are
+away. Its files sit next to the ruleset's: `idle.toml`, `params.toml`, `*.idle`.
+
 **Play:** [The Gilded Mimic](https://ingmmo.com/openinn/play/) ·
 [The Slow Orbit](https://ingmmo.com/openinn/play/?game=slow-orbit) ·
 **Documentation:** https://ingmmo.com/openinn/
@@ -72,7 +79,7 @@ sends a command.
 | `crates/openinn/src/sim.rs` | The game: cells and levels, walls, units, guests, phases, commands, snapshots |
 | `crates/openinn/src/dwellings.rs` | Export to and import from watabou's Dwellings JSON |
 | `crates/openinn/tests/` | Tests and the bot innkeeper they share with the example; `dwellings/` holds two houses exported from the Dwellings app |
-| `games/dungeon-inn/` | The Gilded Mimic: `inn.inn` (declarations and look), `economy.gbx` (GlassBox rules), `help.html`, `bot.plan` (the test bot's build order) |
+| `games/dungeon-inn/` | The Gilded Mimic: `inn.inn` (declarations, look, the `idle` bridge), `economy.gbx` (GlassBox rules), `idle.toml` + `params.toml` + `ledger.idle` (the ledger, in OpenIdle), `help.html`, `bot.plan` (the test bot's build order) |
 | `games/slow-orbit/` | The Slow Orbit, the same way, plus `style.css` |
 | `crates/openinn-web/` | The engine as WebAssembly: `start`, `apply`, `view`, `save` messages |
 | `web/` | The page: `js/engine.js` (wasm), `js/view.js` (three.js), `js/main.js` (interface) |
@@ -87,7 +94,8 @@ Still to come: staff to hire for the night, and more rulesets.
   [Space Station Kit and Mini Characters](https://kenney.nl) by Kenney; all CC0 (licences in
   `web/models/*/`).
 - [three.js](https://threejs.org) r160, MIT (`web/vendor/three-LICENSE.txt`).
-- Rules in [GlassBox](https://crates.io/crates/glassbox).
+- Rules in [GlassBox](https://crates.io/crates/glassbox); the incremental layer runs on
+  [OpenIdle](https://github.com/sirmmo/openidle).
 - Fonts: Cinzel and Fredoka from Google Fonts (OFL).
 
 ## Licence

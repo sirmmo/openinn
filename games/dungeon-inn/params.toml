@@ -1,0 +1,9 @@
+# The ledger's numbers, used as $name in ledger.idle.
+growth = 1.15          # each peddler costs this much more than the last
+peddler_cost = 25
+peddler_rate = 0.2     # gold a second per peddler
+bard_cost = 60
+bard_rate = 0.02       # renown a second per bard
+fence_cost = 500
+fence_rate = 2
+legend_boost = 0.1     # each legend: everything in the ledger 10% faster

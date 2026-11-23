@@ -1,0 +1,140 @@
+# The Gilded Mimic's ledger. Gold is the inn's own (inn.inn: `share Gold`); Served and Renown
+# come from the inn (`feed`); upgrades and the bell act on the inn through inn.inn's `idle` block.
+
+resource Gold
+    text The inn's purse: the bar's takings, and what the ledger's people bring in.
+    view color #e0a92e
+end
+
+resource Served
+    text Guests served, ever.
+    hidden
+end
+
+resource Renown
+    text Word of the inn in the towns above: one for every guest who leaves happy.
+    view color #b78fd9
+end
+
+resource Legend
+    text Kept when you sell the inn: every legend makes the ledger 10% faster and the inn's prices 5% higher.
+    show if Legend > 0
+    boost all 1 + $legend_boost * Legend
+    view color #ffd27a
+end
+
+# ---------- people who work for the inn ----------
+
+generator Peddler
+    text Sells your stew to parties on the stairs: gold, day and night, here or away.
+    cost Gold $peddler_cost * $growth ^ owned
+end
+
+rule peddle
+    appliesTo Peddler
+    out Gold $peddler_rate
+end
+
+generator Bard
+    text Sings of the inn in the towns above: renown.
+    cost Gold $bard_cost * 1.2 ^ owned
+    show if ever(Renown) >= 3
+end
+
+rule sing
+    appliesTo Bard
+    out Renown $bard_rate
+end
+
+generator Fence
+    label Loot fence
+    text Buys what adventurers carry up from below: a lot of gold.
+    cost Gold $fence_cost * 1.18 ^ owned
+    show if ever(Served) >= 60
+end
+
+rule fence
+    appliesTo Fence
+    out Gold $fence_rate
+end
+
+# ---------- upgrades (inn.inn says what they do to the inn) ----------
+
+upgrade Signboard
+    label A sign at the stair-head
+    text More parties find the inn: guests come a quarter as often again.
+    cost Gold 80
+end
+
+upgrade Featherbeds
+    label Feather mattresses
+    text You can build feather beds in the dormitory.
+    cost Gold 120
+    show if ever(Served) >= 10
+end
+
+upgrade Stout
+    label Dwarven stout
+    text Ale sells for half as much again.
+    cost Gold 150
+    show if ever(Served) >= 15
+end
+
+upgrade Benches
+    label Benches in the hall
+    text Guests wait half as long again before they give up.
+    cost Gold 100
+    show if ever(Served) >= 20
+end
+
+upgrade Spices
+    label Spices from the deep markets
+    text Stew sells for 40% more.
+    cost Gold 200
+    show if ever(Served) >= 30
+end
+
+upgrade Apprentice
+    label A peddler's apprentice
+    text Peddlers sell twice as much.
+    cost Gold 300
+    if Peddler >= 5
+    show if Peddler >= 3
+    boost Peddler 2
+end
+
+# ---------- the bell ----------
+
+action bell
+    label Ring the stair bell
+    text Twice as many guests for the next 30 seconds of the night.
+    cooldown 120
+    lasts 30
+end
+
+# ---------- milestones ----------
+
+milestone fifty
+    label Fifty served
+    text The ledger runs a quarter faster.
+    if ever(Served) >= 50
+    boost all 1.25
+    view kind level
+end
+
+milestone famed
+    label Known in every guild
+    text Bards sing twice as well.
+    if ever(Renown) >= 25
+    boost Bard 2
+    view kind level
+end
+
+# ---------- selling the inn ----------
+
+prestige sell
+    label Sell the inn
+    text Sell up and dig a grander inn: the building, the gold and the ledger's people start over; legend stays.
+    gain Legend floor(sqrt(total(Renown) / 5))
+    keep Legend
+end
