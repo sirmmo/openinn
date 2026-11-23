@@ -16,11 +16,12 @@ for g in games/*/; do
   id=$(basename "$g")
   mkdir -p "_site/play/games/$id"
   cp "$g"*.inn "$g"*.gbx "_site/play/games/$id/" 2>/dev/null || true
+  cp "$g"*.html "$g"*.css "_site/play/games/$id/" 2>/dev/null || true   # help and theme
   (cd "_site/play/games/$id" && ls *.gbx *.inn 2>/dev/null | sort | awk 'BEGIN{printf "["} {printf "%s\"%s\"", (NR>1?",":""), $0} END{print "]"}' > files.json)
 done
 
 # The documentation.
-cp site/index.html site/docs.css _site/; cp site/shot.jpg _site/ 2>/dev/null || true
+cp site/index.html site/docs.css _site/; cp site/*.jpg _site/ 2>/dev/null || true
 python3 tools/md.py docs/RULES.md site/page.html rules > _site/rules.html
 python3 tools/md.py docs/ENGINE.md site/page.html engine > _site/engine.html
 examples=$(mktemp)

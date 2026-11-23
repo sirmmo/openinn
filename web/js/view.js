@@ -1,6 +1,6 @@
-// The 3D inn: KayKit Dungeon floors, walls and furniture on a grid of 4-unit cells, Kenney
-// Mini Characters as guests, an overlay for the GlassBox layers, and a camera you can drag,
-// turn and zoom.
+// The 3D inn: floors, walls and furniture on a grid of 4-unit cells, animated guests, an overlay
+// for the GlassBox layers, and a camera you can drag, turn and zoom. Which models and colours,
+// the ruleset says in its `look` block (docs/RULES.md); the rest is the same for every inn.
 
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/jsm/loaders/GLTFLoader.js';
@@ -9,7 +9,46 @@ import { clone as cloneSkinned } from '../vendor/jsm/utils/SkeletonUtils.js';
 export const CELL = 4;
 const GUEST_SCALE = 2.6;
 const TAU = Math.PI * 2;
-const LAYER_COLOURS = { Noise: 0xff9f1c, Heat: 0xe4572e, Dirt: 0x7a5c3a };
+const LAYER_COLOURS = [0xff9f1c, 0x4fc3f7, 0xe4572e, 0x9ccc65, 0xba68c8];
+
+// A model hint: `name` or `name:x:z:degrees:scale` parts, separated by spaces (x and z in cells
+// from the cell's centre), e.g. `table chair:0:-0.3:0 chair:0:0.3:180`.
+function parts(hint) {
+  return (hint || '').split(/\s+/).filter(Boolean).map((t) => {
+    const [name, x, z, deg, k] = t.split(':');
+    return { name, x: +x || 0, z: +z || 0, rot: ((+deg || 0) * Math.PI) / 180, scale: +k || 1 };
+  });
+}
+
+// The `look` block, with neutral defaults.
+function readLook(raw = {}) {
+  const w = (k) => (raw[k] || '').split(/\s+/).filter(Boolean);
+  const num = (v, d) => (v === undefined || Number.isNaN(+v) ? d : +v);
+  const hex = (v, d) => (v ? parseInt(v.replace('#', ''), 16) : d);
+  const [dir = 'kaykit', ext = 'gltf'] = w('models');
+  const [cdir = 'guests', cext = 'glb'] = w('characters');
+  const [win, winEvery] = w('window');
+  const [decor, decorEvery, dx, dy, dz] = w('decor');
+  const [ent, entScale, entDeg] = w('entrance');
+  const [sky, low] = w('light');
+  const [grid1, grid2] = w('grid');
+  return {
+    dir, ext, cdir, cext,
+    scale: num(w('scale')[0], 1),
+    furniture: num(w('furniture')[0], 1),
+    floorY: num(w('floor-y')[0], 0),
+    wall: w('wall')[0],
+    window: win ? { name: win, every: num(winEvery, 3) } : null,
+    decor: decor ? { name: decor, every: num(decorEvery, 3), x: num(dx, 0), y: num(dy, 2), z: num(dz, 0.5) } : null,
+    entrance: ent ? { name: ent, scale: num(entScale, 1), rot: (num(entDeg, 0) * Math.PI) / 180 } : null,
+    background: hex(w('background')[0], 0x17131f),
+    ground: w('ground')[0] === 'none' ? null : hex(w('ground')[0], 0x2b2433),
+    grid: [hex(grid1, 0x4a3f58), hex(grid2 || grid1, 0x3a3146)],
+    edge: hex(w('edge')[0], 0x6b5c80),
+    light: [hex(sky, 0xffe6c7), hex(low, 0x2a2238)],
+    stars: num(w('stars')[0], 0),
+  };
+}
 
 export function cellCenter(x, y) {
   return new THREE.Vector3(x * CELL + CELL / 2, 0, y * CELL + CELL / 2);
@@ -28,7 +67,8 @@ export class View {
     this.camera = new THREE.PerspectiveCamera(40, 1, 0.5, 400);
     this.cam = { target: new THREE.Vector3(24, 0, 12), yaw: 0.35, pitch: 0.95, dist: 52 };
 
-    this.scene.add(new THREE.HemisphereLight(0xffe6c7, 0x2a2238, 1.1));
+    this.hemi = new THREE.HemisphereLight(0xffe6c7, 0x2a2238, 1.1);
+    this.scene.add(this.hemi);
     const sun = new THREE.DirectionalLight(0xfff1dd, 1.6);
     sun.position.set(-20, 40, 30);
     sun.castShadow = true;
@@ -69,14 +109,20 @@ export class View {
   async load(catalog, onProgress) {
     this.catalog = catalog;
     const { inn } = catalog;
+    const look = readLook(catalog.look);
+    this.look = look;
+    this.scene.background.set(look.background);
+    this.scene.fog.color.set(look.background);
+    this.hemi.color.set(look.light[0]);
+    this.hemi.groundColor.set(look.light[1]);
     const loader = new GLTFLoader();
-    const kay = new Set(['wall', 'wall_half', 'stairs', 'torch_mounted', 'candle_lit']);
-    for (const r of catalog.rooms) if (r.floor) kay.add(r.floor);
-    for (const u of catalog.units) if (u.model) kay.add(u.model);
+    const names = new Set([look.wall, look.window?.name, look.decor?.name, look.entrance?.name].filter(Boolean));
+    for (const r of catalog.rooms) for (const p of parts(r.floor)) names.add(p.name);
+    for (const u of catalog.units) for (const p of parts(u.model)) names.add(p.name);
     const guests = new Set(catalog.guests.map((g) => g.model).filter(Boolean));
     const jobs = [
-      ...[...kay].map((m) => [m, `models/kaykit/${m}.gltf`]),
-      ...[...guests].map((m) => [m, `models/guests/${m}.glb`]),
+      ...[...names].map((m) => [m, `models/${look.dir}/${m}.${look.ext}`]),
+      ...[...guests].map((m) => [m, `models/${look.cdir}/${m}.${look.cext}`]),
     ];
     let done = 0;
     await Promise.all(jobs.map(async ([name, url]) => {
@@ -84,7 +130,7 @@ export class View {
         const gltf = await loader.loadAsync(url);
         gltf.scene.traverse((o) => {
           if (o.isMesh) {
-            o.castShadow = !name.startsWith('floor');
+            o.castShadow = !catalog.rooms.some((r) => parts(r.floor).some((p) => p.name === name));
             o.receiveShadow = true;
           }
         });
@@ -96,35 +142,38 @@ export class View {
       onProgress?.(++done / jobs.length);
     }));
 
-    // Rock all around the diggable grid, and a faint grid over it.
+    // The ground all around the diggable grid (rock, or nothing), and a faint grid over it.
     const w = inn.width * CELL;
     const h = inn.height * CELL;
-    const rock = new THREE.Mesh(
-      new THREE.PlaneGeometry(w + 80, h + 80).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: 0x2b2433, roughness: 1 }),
-    );
-    rock.position.set(w / 2, -0.15, h / 2);
-    rock.receiveShadow = true;
-    this.scene.add(rock);
-    const grid = new THREE.GridHelper(Math.max(w, h), Math.max(inn.width, inn.height), 0x4a3f58, 0x3a3146);
+    if (look.ground !== null) {
+      const rock = new THREE.Mesh(
+        new THREE.PlaneGeometry(w + 80, h + 80).rotateX(-Math.PI / 2),
+        new THREE.MeshStandardMaterial({ color: look.ground, roughness: 1 }),
+      );
+      rock.position.set(w / 2, -0.15, h / 2);
+      rock.receiveShadow = true;
+      this.scene.add(rock);
+    }
+    if (look.stars) this.scene.add(starfield(look.stars, w, h));
+    const grid = new THREE.GridHelper(Math.max(w, h), Math.max(inn.width, inn.height), look.grid[0], look.grid[1]);
     grid.position.set(Math.max(w, h) / 2, -0.1, Math.max(w, h) / 2);
     grid.scale.set(1, 1, 1);
     this.scene.add(grid);
     const edge = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(w, 0.01, h)),
-      new THREE.LineBasicMaterial({ color: 0x6b5c80 }),
+      new THREE.LineBasicMaterial({ color: look.edge }),
     );
     edge.position.set(w / 2, -0.08, h / 2);
     this.scene.add(edge);
 
-    // The stairs down from the level above, north of the entrance.
+    // The way in (stairs, a door), on the north edge of the entrance cell.
     const [ex, ey] = inn.entrance;
-    const stairs = this.model('stairs');
-    if (stairs) {
-      stairs.scale.setScalar(0.8);
-      stairs.rotation.y = Math.PI;
-      stairs.position.copy(cellCenter(ex, ey)).add(new THREE.Vector3(0, 0, -CELL / 2));
-      this.scene.add(stairs);
+    const door = look.entrance && this.model(look.entrance.name);
+    if (door) {
+      door.scale.setScalar(look.scale * look.entrance.scale);
+      door.rotation.y = look.entrance.rot;
+      door.position.copy(cellCenter(ex, ey)).add(new THREE.Vector3(0, 0, -CELL / 2));
+      this.scene.add(door);
     }
     this.cam.target.copy(cellCenter(ex, ey + 2));
   }
@@ -132,6 +181,20 @@ export class View {
   model(name) {
     const t = this.templates[name];
     return t ? t.clone(true) : null;
+  }
+
+  // A model hint's parts in one group, scaled; null when none of them is loaded.
+  assemble(hint, scale) {
+    const g = new THREE.Group();
+    for (const p of parts(hint)) {
+      const m = this.model(p.name);
+      if (!m) continue;
+      m.position.set(p.x * CELL, 0, p.z * CELL);
+      m.rotation.y = p.rot;
+      m.scale.setScalar(scale * p.scale);
+      g.add(m);
+    }
+    return g.children.length ? g : null;
   }
 
   resize() {
@@ -165,7 +228,7 @@ export class View {
       const cur = this.units.get(k);
       if (cur && cur.unit === u.unit) continue;
       if (cur) this.scene.remove(cur.obj);
-      const obj = this.model(u.model) || new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: 0xaa8866 }));
+      const obj = this.assemble(u.model, this.look.furniture) || new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: 0xaa8866 }));
       obj.position.copy(cellCenter(u.x, u.y));
       obj.rotation.y = this.facing(u.x, u.y, dug);
       this.scene.add(obj);
@@ -195,9 +258,10 @@ export class View {
   cellGroup(c, walls) {
     const g = new THREE.Group();
     const room = this.catalog.rooms.find((r) => r.id === c.room);
-    const floor = this.model(room?.floor);
+    const { look } = this;
+    const floor = this.assemble(room?.floor, look.scale);
     if (floor) {
-      if (room.floor.includes('small')) floor.scale.set(2, 1, 2);
+      floor.position.y = look.floorY;
       g.add(floor);
     }
     const tint = new THREE.Mesh(
@@ -210,19 +274,22 @@ export class View {
     const isEntrance = c.x === entrance[0] && c.y === entrance[1];
     for (let d = 0; d < 4; d++) {
       if (!(walls & (1 << d))) continue;
-      if (isEntrance && d === 0) continue; // the stairs come in here
-      const w = this.model('wall');
-      if (!w) continue;
+      if (isEntrance && d === 0) continue; // the way in
       const back = d === 0 || d === 3; // full height away from the camera, low in front
-      w.scale.y = back ? 1 : 0.22;
+      const win = look.window && back && (c.x * 5 + c.y * 3 + d) % look.window.every === 0;
+      const w = this.model(win ? look.window.name : look.wall);
+      if (!w) continue;
+      w.scale.setScalar(look.scale);
+      w.scale.y = look.scale * (back ? 1 : 0.22);
       const off = [[0, -CELL / 2], [CELL / 2, 0], [0, CELL / 2], [-CELL / 2, 0]][d];
       w.position.set(off[0], 0, off[1]);
       w.rotation.y = d % 2 ? Math.PI / 2 : 0;
       g.add(w);
-      if (back && d === 0 && (c.x + c.y) % 3 === 0) {
-        const t = this.model('torch_mounted');
+      const dec = look.decor;
+      if (dec && back && d === 0 && (c.x + c.y) % dec.every === 0) {
+        const t = this.model(dec.name);
         if (t) {
-          t.position.set(0.8, 2.6, -CELL / 2 + 0.5);
+          t.position.set(dec.x, dec.y, -CELL / 2 + dec.z);
           g.add(t);
         }
       }
@@ -342,13 +409,15 @@ export class View {
     this.overlay.clear();
     if (!this.layer || !this.view) return;
     const li = this.view.layers.indexOf(this.layer);
-    const max = this.catalog.layers.find((l) => l.id === this.layer)?.max || 20;
+    const def = this.catalog.layers.find((l) => l.id === this.layer);
+    const max = def?.max || 20;
+    const colour = def?.colour ? new THREE.Color(def.colour) : LAYER_COLOURS[this.catalog.layers.indexOf(def) % LAYER_COLOURS.length];
     for (const c of this.view.cells) {
       const v = c.maps[li] || 0;
       if (v <= 0.01) continue;
       const m = new THREE.Mesh(
         new THREE.PlaneGeometry(CELL, CELL).rotateX(-Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: LAYER_COLOURS[this.layer] || 0xffffff, transparent: true, opacity: Math.min(0.7, 0.12 + (2.5 * v) / max), depthWrite: false }),
+        new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: Math.min(0.7, 0.12 + (2.5 * v) / max), depthWrite: false }),
       );
       m.position.copy(cellCenter(c.x, c.y)).setY(0.2);
       m.renderOrder = 2;
@@ -458,4 +527,19 @@ export class View {
     this.updateCamera();
     this.renderer.render(this.scene, this.camera);
   }
+}
+
+// Stars below and around the grid, for inns with nothing underneath.
+function starfield(n, w, h) {
+  const pos = new Float32Array(n * 3);
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < n; i++) {
+    pos[i * 3] = w / 2 + (rnd() - 0.5) * 260;
+    pos[i * 3 + 1] = -8 - rnd() * 70;
+    pos[i * 3 + 2] = h / 2 + (rnd() - 0.5) * 260;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xdfe8ff, size: 0.5, sizeAttenuation: true, fog: false }));
 }

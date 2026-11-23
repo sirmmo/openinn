@@ -61,6 +61,7 @@ layer Noise
     diffuse 0.15               # fraction spread to neighbouring cells per tick
     min 0
     max 30
+    colour ff9f1c              # for the overlay in the game
 end
 ```
 
@@ -71,7 +72,7 @@ room taproom
     name Taproom
     cost 10                    # money per cell dug
     colour b5734a              # for maps and the interface
-    floor floor_wood_large     # a hint for the view (a model name)
+    floor floor_wood_large     # a hint for the view: a model (see Model hints)
 end
 ```
 
@@ -86,7 +87,7 @@ unit bar
     cost 50
     seats 3                    # guests it serves at once
     start Mugs 4               # local stock it is built with
-    model bar_straight_A       # a hint for the view
+    model bar_straight_A       # a hint for the view (see Model hints)
 end
 ```
 
@@ -140,6 +141,59 @@ entrance for `if`) or `global <resource> <cmp> <value>`, with GlassBox's compari
 A guest's mood starts at 0.6, rises by 0.1 with every service, drops by 0.01 for every tick spent
 waiting for something nobody offers, and by their dislikes. A guest leaving with mood `m` moves
 reputation by `(m - 0.5) × 2 × review`.
+
+## look
+
+How a client draws the inn. The engine passes these lines to the client untouched (in the
+catalog's `look`) and reads none of them, so a ruleset plays the same without one. One block per
+ruleset; every key is optional. The browser game reads these:
+
+```text
+look station
+    models station glb         # furniture, floors and walls: web/models/station/<name>.glb
+    characters guests glb      # guests: web/models/guests/<name>.glb (animated: idle, walk, sit)
+    scale 4                    # size of floors, walls and the entrance (a cell is 4 units)
+    furniture 3                # size of the units' models
+    floor-y -1.17              # raise or sink the floors
+    wall wall                  # on the edges between dug and undug cells
+    window wall-window 3       # instead of a wall on some back walls (about one in 3)
+    decor torch_mounted 3 0.8 2.6 0.5   # on every 3rd north wall, at x, height, distance from it
+    entrance wall-door-wide 1 0         # on the entrance's north edge: model, scale, degrees
+    background 080b17          # colours, hex without `#`
+    ground none                # under the grid: a colour, or none
+    stars 900                  # a starfield underneath
+    grid 26304f 1a2140         # the grid's lines
+    edge 3d4a7a                # the grid's border
+    light dfe8ff 1c2340        # sky and ground colours of the light
+    loading Pressurising the airlock    # shown while the models load
+    arrive comes aboard through the airlock   # "A Freighter pilot comes aboard through the airlock."
+    seeds orbit comet nebula   # words for new seeds (orbit-4821)
+    help help.html             # the help window's text: an HTML file in the ruleset's folder
+    style style.css            # a stylesheet for the page, in the ruleset's folder
+end
+```
+
+The words for money and reputation in the interface are the names of their resources
+(`money Credits`: "3 credits").
+
+## Model hints
+
+`floor` in a room and `model` in a unit or guest name models for the client. A unit or room
+may use several models, separated by spaces, each as `name:x:z:degrees:scale`, with x and z in
+cells from the centre of the cell (towards the wall behind it is −z). A table with two chairs:
+
+```text
+    model table chair:0:-0.3:0 chair:0:0.3:180
+```
+
+Units turn their back to a wall when they have one.
+
+## Testing a ruleset
+
+`cargo test` plays a season of every folder in `games/` with a simple bot, which needs a
+`bot.plan` in the folder: `dig x y room` and `build x y unit` lines that it works down each day,
+doing what it can afford. `cargo run --example season -- games/<id> 1 2` prints what happens
+night by night.
 
 ## Commands
 

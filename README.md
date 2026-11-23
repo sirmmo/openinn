@@ -12,8 +12,14 @@ between them is plain [GlassBox](https://crates.io/crates/glassbox), the same ru
 
 The first ruleset is **The Gilded Mimic** (`games/dungeon-inn`): an inn on the third level of
 the dungeon, for adventurers, dwarf miners, wizards and goblin peddlers on their way down.
+The second is **The Slow Orbit** (`games/slow-orbit`): a bar and bunkhouse on a refuelling ring
+at the edge of a mining belt, where the air goes stale (a CO2 layer that scrubbers clear) and
+courier robots need a charging post. Each ruleset also says how it looks (a `look` block: models,
+colours, words) and can bring its own help text and stylesheet.
 
-**Play:** https://ingmmo.com/openinn/play/ · **Documentation:** https://ingmmo.com/openinn/
+**Play:** [The Gilded Mimic](https://ingmmo.com/openinn/play/) ·
+[The Slow Orbit](https://ingmmo.com/openinn/play/?game=slow-orbit) ·
+**Documentation:** https://ingmmo.com/openinn/
 
 ## How a ruleset works
 
@@ -60,19 +66,20 @@ sends a command.
 | `crates/openinn/src/script.rs` | OpenInn's blocks, compiled next to GlassBox's |
 | `crates/openinn/src/sim.rs` | The game: cells, units, guests, phases, commands, snapshots |
 | `crates/openinn/tests/` | Tests and the bot innkeeper they share with the example |
-| `games/dungeon-inn/` | The Gilded Mimic: `inn.inn` (declarations), `economy.gbx` (GlassBox rules) |
+| `games/dungeon-inn/` | The Gilded Mimic: `inn.inn` (declarations and look), `economy.gbx` (GlassBox rules), `help.html`, `bot.plan` (the test bot's build order) |
+| `games/slow-orbit/` | The Slow Orbit, the same way, plus `style.css` |
 | `crates/openinn-web/` | The engine as WebAssembly: `start`, `apply`, `view`, `save` messages |
 | `web/` | The page: `js/engine.js` (wasm), `js/view.js` (three.js), `js/main.js` (interface) |
 | `site/`, `docs/` | The documentation site: the overview page, and the pages rendered from `docs/*.md` |
 | `tools/site.sh` | Builds `_site/` for GitHub Pages: the documentation at the root, the game in `play/` |
 
-Still to come: staff to hire for the night, and more rulesets: an original sci-fi station bar
-is the next candidate.
+Still to come: staff to hire for the night, and more rulesets.
 
 ## Credits
 
-- 3D models: [KayKit Dungeon Pack](https://kaylousberg.com) by Kay Lousberg and
-  [Mini Characters](https://kenney.nl) by Kenney, both CC0 (licences in `web/models/*/`).
+- 3D models: [KayKit Dungeon Pack](https://kaylousberg.com) by Kay Lousberg;
+  [Space Station Kit and Mini Characters](https://kenney.nl) by Kenney; all CC0 (licences in
+  `web/models/*/`).
 - [three.js](https://threejs.org) r160, MIT (`web/vendor/three-LICENSE.txt`).
 - Rules in [GlassBox](https://crates.io/crates/glassbox).
 - Fonts: Cinzel and Fredoka from Google Fonts (OFL).

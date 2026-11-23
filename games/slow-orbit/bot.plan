@@ -1,0 +1,37 @@
+# The test bot's plan for The Slow Orbit (crates/openinn/tests/bot.rs). Around the airlock at
+# (6, 0): an airlock deck running south, the lounge to the west with the galley and hold behind
+# it, the cabins to the east.
+dig 6 1 airlock
+dig 6 2 airlock
+dig 5 1 lounge
+dig 5 2 lounge
+dig 4 1 lounge
+dig 4 2 lounge
+dig 3 1 galley
+dig 2 1 galley
+dig 3 2 hold
+build 5 1 bar
+build 4 2 table
+build 3 1 printer
+build 3 2 tanks
+build 2 1 locker
+# Night 2 and on, as credits allow.
+build 6 1 charger
+build 5 2 scrubber
+dig 6 3 airlock
+dig 7 2 cabins
+dig 7 3 cabins
+build 7 2 pod
+build 7 3 pod
+dig 5 3 lounge
+dig 4 3 lounge
+build 5 3 table
+build 4 3 table
+dig 8 2 cabins
+dig 8 3 cabins
+build 8 2 berth
+build 8 3 scrubber
+dig 5 4 lounge
+build 5 4 bar
+dig 9 2 cabins
+build 9 2 berth

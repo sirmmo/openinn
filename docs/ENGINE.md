@@ -53,8 +53,9 @@ Commands are JSON objects tagged by `do`:
 * `stats`: `{arrived, served, happy, angry, earned}` for the season.
 
 The ruleset's own `catalog()` lists the inn, phases, layers, rooms, units (with the services
-they offer), needs, services and guests, with their names, costs and model hints, so a client
-can build its menus without knowing the ruleset.
+they offer), needs, services and guests, with their names, costs and model hints, and the
+`look` block's lines, so a client can build its menus and draw the inn without knowing the
+ruleset.
 
 ## In the browser
 

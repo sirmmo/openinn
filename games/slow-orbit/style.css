@@ -1,0 +1,21 @@
+/* The Slow Orbit's look: cool station panels with the kit's orange trim. */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&display=swap');
+:root {
+  --ink: #141a2e;
+  --paper: #eef2fb;
+  --paper2: #d9e0f2;
+  --gold: #f29b38;
+  --accent: #3b64d4;
+  --muted: #5d6888;
+}
+html, body, #loading { background: #080b17; }
+#top .name, #tools h3, .modal h2, #guestCard h4, #loading .title { font-family: Orbitron, sans-serif; letter-spacing: 0.5px; }
+#top .name { font-size: 15px; font-weight: 800; }
+#tools h3 { font-size: 12px; }
+.modal h2 { font-size: 21px; }
+#top .progress i { background: linear-gradient(90deg, #2b6cb0, #5ee0c0); }
+i.coin { background: radial-gradient(circle at 35% 35%, #ffd49a, var(--gold) 60%, #a85d12); border-radius: 4px; transform: rotate(45deg) scale(0.85); }
+i.guest { background: var(--accent); }
+.need .bar i { background: #3bb3a0; }
+#log li { background: rgba(238, 242, 251, 0.92); }
+#log li.phase { background: var(--ink); }

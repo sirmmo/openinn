@@ -39,18 +39,21 @@ layer Noise
     decay 0.25
     diffuse 0.15
     max 30
+    colour ff9f1c
 end
 
 layer Heat
     decay 0.1
     diffuse 0.2
     max 20
+    colour e4572e
 end
 
 layer Dirt
     decay 0.002
     diffuse 0.02
     max 50
+    colour 7a5c3a
 end
 
 # ---------- rooms (cost per cell dug) ----------
@@ -73,7 +76,7 @@ room kitchen
     name Kitchen
     cost 12
     colour c9a227
-    floor floor_tile_small
+    floor floor_tile_small:0:0:0:2   # small tiles, twice the size
 end
 
 room cellar
@@ -274,4 +277,23 @@ guest goblin
     map Noise out 0.6
     map Dirt out 0.3
     model character-zombie
+end
+
+# ---------- how it looks (read by the browser game, not by the engine) ----------
+
+look dungeon
+    models kaykit gltf                   # web/models/kaykit/<name>.gltf: KayKit Dungeon Pack
+    characters guests glb                # web/models/guests/<name>.glb: Kenney Mini Characters
+    wall wall
+    decor torch_mounted 3 0.8 2.6 0.5    # a torch on every third north wall
+    entrance stairs 0.8 180              # the stairs down from the level above
+    background 17131f
+    ground 2b2433
+    grid 4a3f58 3a3146
+    edge 6b5c80
+    light ffe6c7 2a2238
+    loading Lighting the torches
+    arrive comes down the stairs
+    seeds mimic kobold lantern barrel goblet torch cellar dragon tankard rune
+    help help.html
 end

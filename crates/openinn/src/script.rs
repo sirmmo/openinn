@@ -10,6 +10,7 @@
 //! need Thirst          # something guests feel
 //! service ale          # what a unit gives a guest for a need, and what it takes
 //! guest adventurer     # a kind of guest: purse, needs, dislikes, when they come
+//! look dungeon         # how a client draws the inn: models, colours, words (the engine ignores it)
 //! ```
 //!
 //! Every name is declared before it is used, and every error names its file and line.
@@ -17,8 +18,8 @@
 use glassbox::{compile, number, split_blocks, tokenize, Block, Cmp, Error, Line, Rules, Scope};
 
 /// OpenInn's block kinds, compiled here; everything else goes to GlassBox.
-pub const HOST_KINDS: [&str; 8] = [
-    "inn", "phase", "layer", "room", "unit", "need", "service", "guest",
+pub const HOST_KINDS: [&str; 9] = [
+    "inn", "phase", "layer", "room", "unit", "need", "service", "guest", "look",
 ];
 
 #[derive(Clone, Debug, Default)]
@@ -156,6 +157,10 @@ pub struct Ruleset {
     pub needs: Vec<NeedDef>,
     pub services: Vec<ServiceDef>,
     pub guests: Vec<GuestDef>,
+    /// Colours for the layers, by layer name (`colour` in a layer block): hints for clients.
+    pub layer_colours: Vec<(String, String)>,
+    /// The `look` block's lines, `(key, rest of the line)`: hints for clients, unread here.
+    pub look: Vec<(String, String)>,
     pub warnings: Vec<String>,
 }
 
@@ -204,12 +209,13 @@ pub fn load(files: &[(String, String)]) -> Result<Ruleset, Error> {
         let (w, _) = compile(&mut rs.rules, name, text, &HOST_KINDS)?;
         rs.warnings.extend(w);
     }
-    for kind in ["inn", "phase", "service", "guest"] {
+    for kind in ["inn", "phase", "service", "guest", "look"] {
         for (f, b) in blocks.iter().filter(|(_, b)| b.kind == kind) {
             match kind {
                 "inn" => inn(&mut rs, f, b)?,
                 "phase" => phase(&mut rs, f, b)?,
                 "service" => service(&mut rs, f, b)?,
+                "look" => look(&mut rs, f, b)?,
                 _ => guest(&mut rs, f, b)?,
             }
         }
@@ -326,6 +332,11 @@ fn layer(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
     }
     let m = rs.rules.declare_map(&b.name);
     for l in &b.lines {
+        if matches!(l.words[0].as_str(), "colour" | "color") {
+            let c = format!("#{}", word(f, l, 1)?.trim_start_matches('#'));
+            rs.layer_colours.push((b.name.clone(), c));
+            continue;
+        }
         let v = number(f, l, 1)?;
         let def = &mut rs.rules.maps[m];
         match l.words[0].as_str() {
@@ -408,7 +419,7 @@ fn unit(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
                 }
             }
             "start" => starts.push((word(f, l, 1)?.to_string(), number(f, l, 2)?, l)),
-            "model" => model = word(f, l, 1)?.to_string(),
+            "model" => model = text(l),
             _ => return Err(unknown(f, b, l)),
         }
     }
@@ -650,7 +661,7 @@ fn guest(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
                 g.when.push(t);
             }
             "map" => g.emits.push(emission(rs, f, l)?),
-            "model" => g.model = word(f, l, 1)?.to_string(),
+            "model" => g.model = text(l),
             _ => return Err(unknown(f, b, l)),
         }
     }
@@ -662,6 +673,21 @@ fn guest(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
         ));
     }
     rs.guests.push(g);
+    Ok(())
+}
+
+/// `look`: free `key values...` lines for the client; only duplicates are refused.
+fn look(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    if !rs.look.is_empty() {
+        return Err(Error::new(f, b.no, "there is more than one look block"));
+    }
+    for l in &b.lines {
+        let key = l.words[0].clone();
+        if rs.look.iter().any(|(k, _)| *k == key) {
+            return Err(err(f, l, format!("look {}: {key} is given twice", b.name)));
+        }
+        rs.look.push((key, text(l)));
+    }
     Ok(())
 }
 
@@ -700,7 +726,11 @@ impl Ruleset {
             "phases": self.phases.iter().map(|p| json!({
                 "id": p.id, "name": p.name, "length": p.length, "build": p.build, "open": p.open, "night": p.night,
             })).collect::<Vec<_>>(),
-            "layers": self.rules.maps.iter().map(|m| json!({ "id": m.id, "max": if m.max.is_finite() { m.max } else { 0.0 } })).collect::<Vec<_>>(),
+            "layers": self.rules.maps.iter().map(|m| json!({
+                "id": m.id, "max": if m.max.is_finite() { m.max } else { 0.0 },
+                "colour": self.layer_colours.iter().find(|(id, _)| *id == m.id).map(|(_, c)| c.clone()),
+            })).collect::<Vec<_>>(),
+            "look": self.look.iter().map(|(k, v)| (k.clone(), serde_json::Value::from(v.clone()))).collect::<serde_json::Map<_, _>>(),
             "rooms": self.rooms.iter().map(|r| json!({
                 "id": r.id, "name": r.name, "cost": r.cost, "colour": r.colour, "floor": r.floor,
             })).collect::<Vec<_>>(),

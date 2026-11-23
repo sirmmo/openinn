@@ -1,0 +1,36 @@
+# The test bot's plan for The Gilded Mimic (crates/openinn/tests/bot.rs): each day it works down
+# this list, doing what it can afford. Around the stairs at (6, 0): a hall running south, the
+# taproom to the west with the kitchen and cellar behind it, the dormitory to the east.
+dig 6 1 hall
+dig 6 2 hall
+dig 5 1 taproom
+dig 5 2 taproom
+dig 4 1 taproom
+dig 4 2 taproom
+dig 3 1 kitchen
+dig 2 1 kitchen
+dig 3 2 cellar
+build 5 1 bar
+build 4 2 table
+build 3 1 hearth
+build 3 2 kegs
+build 2 1 larder
+# Day 2 and on, as money allows.
+dig 6 3 hall
+dig 7 2 dorm
+dig 7 3 dorm
+build 7 2 bunk
+build 7 3 bunk
+dig 5 3 taproom
+dig 4 3 taproom
+build 5 3 table
+build 4 3 table
+build 6 2 washtub
+dig 8 2 dorm
+dig 8 3 dorm
+build 8 2 bed
+build 8 3 bed
+dig 5 4 taproom
+build 5 4 bar
+dig 9 2 dorm
+build 9 2 bed

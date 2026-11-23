@@ -1,0 +1,48 @@
+# The Slow Orbit's economy, in plain GlassBox. The units are declared in inn.inn.
+# Fizz, Meals and Rations are global: the ring's stores, kept in its account with Credits.
+# Open is set by the phases (1 while the airlock is open).
+
+# The fizz tanks brew another batch when the counter runs low; every bulb costs a little.
+unitRule brew
+    appliesTo tanks
+    rate 2
+    global Open atLeast 1
+    global Fizz less 12
+    global Credits in 0.6
+    global Fizz out 1
+end
+
+# The cold store buys rations from passing freighters, a few at a time.
+unitRule restock
+    appliesTo locker
+    rate 4
+    global Rations less 8
+    global Credits in 1.5
+    global Rations out 3
+end
+
+# The food printer turns rations into meals while the airlock is open, and hums.
+unitRule print
+    appliesTo printer
+    rate 3
+    global Open atLeast 1
+    global Meals less 10
+    global Rations in 1
+    global Meals out 2
+    map Noise out 0.5
+end
+
+# Air scrubbers pull the CO2 out of the rooms around them, for the power they draw.
+unitRule scrub
+    appliesTo scrubber
+    global Open atLeast 1
+    global Credits in 0.05
+    map CO2 in 1.2 radius 1
+end
+
+# A charging post draws power while the airlock is open.
+unitRule draw
+    appliesTo charger
+    global Open atLeast 1
+    global Credits in 0.02
+end

@@ -11,6 +11,7 @@ const SAVE_KEY = `openinn:${GAME}`;
 const TICK_MS = 250; // a tick at normal speed
 
 let engine, files, catalog, view, state;
+let look = {}; // the ruleset's look block: words, help and style for the page
 let tool = null; // { kind: 'dig', room } | { kind: 'build', unit } | { kind: 'remove' }
 let speed = 1;
 let timer = null;
@@ -25,6 +26,13 @@ async function boot() {
   [engine, files] = await Promise.all([Engine.load('openinn.wasm'), fetchRuleset(GAME)]);
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch { saved = null; }
+  // A first start reads the ruleset, whose `look` has the words new seeds are made of.
+  const first = engine.start(files, 'look');
+  if (first.error) {
+    $('loadsub').textContent = first.error;
+    return;
+  }
+  look = first.catalog.look || {};
   const seed = params.get('seed') || saved?.seed || newSeed();
   const commands = !params.get('seed') || params.get('seed') === saved?.seed ? saved?.commands : null;
   let res = engine.start(files, seed, commands);
@@ -37,8 +45,11 @@ async function boot() {
     return;
   }
   catalog = res.catalog;
-  $('loadsub').textContent = 'Lighting the torches…';
-  await view.load(catalog, (k) => { $('loadbar').style.width = `${Math.round(k * 100)}%`; });
+  $('loadsub').textContent = `${look.loading || 'Setting the tables'}…`;
+  await Promise.all([
+    view.load(catalog, (k) => { $('loadbar').style.width = `${Math.round(k * 100)}%`; }),
+    dress(),
+  ]);
   setupHud();
   apply(res, false);
   view.focus(state.cells);
@@ -46,14 +57,31 @@ async function boot() {
   $('hud').hidden = false;
   // For the console and for tests: window.openinn.send({ do: 'dig', x: 6, y: 1, room: 'hall' }).
   window.openinn = { send, state: () => state, view, setSpeed, catalog };
-  if (!localStorage.getItem('openinn:seen-help')) {
+  if (!localStorage.getItem(`openinn:seen-help:${GAME}`)) {
     $('help').hidden = false;
-    localStorage.setItem('openinn:seen-help', '1');
+    localStorage.setItem(`openinn:seen-help:${GAME}`, '1');
+  }
+}
+
+// The ruleset's own help text (`help` in its look) and stylesheet (`style`), from games/<id>/.
+async function dress() {
+  const base = `games/${GAME}/`;
+  if (look.style) {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = base + look.style;
+    document.head.appendChild(l);
+  }
+  if (look.help) {
+    try {
+      const r = await fetch(base + look.help);
+      if (r.ok) $('helpBody').innerHTML = await r.text();
+    } catch { /* the generic help stays */ }
   }
 }
 
 function newSeed() {
-  const w = ['mimic', 'kobold', 'lantern', 'barrel', 'goblet', 'torch', 'cellar', 'dragon', 'tankard', 'rune'];
+  const w = (look.seeds || 'inn tankard lantern barrel stool').split(/\s+/);
   return `${w[Math.floor(Math.random() * w.length)]}-${Math.floor(Math.random() * 9000 + 1000)}`;
 }
 
@@ -130,6 +158,9 @@ function setSpeed(s) {
 function setupHud() {
   $('innName').textContent = catalog.inn.name;
   document.title = `OpenInn: ${catalog.inn.name}`;
+  document.body.dataset.game = GAME;
+  document.querySelector('.stat[title="Gold"]').title = catalog.inn.money;
+  document.querySelector('.stat[title="Reputation"]').title = catalog.inn.reputation;
   const digs = $('digButtons');
   for (const r of catalog.rooms) {
     const b = toolButton(r.name, r.cost, `<span class="sw" style="background:${r.colour}"></span>`);
@@ -305,7 +336,7 @@ function renderCard() {
     return `<div class="need"><span>${n.name}</span><span class="bar"><i class="${v >= n.urgent ? 'urgent' : ''}" style="width:${Math.min(100, (100 * v) / n.max)}%"></i></span></div>`;
   }).join('');
   card.innerHTML = `<h4>${guestName(g.kind)}</h4><div class="mood">${stars(g.mood)}</div>
-    <div class="hint">${doing(g)} · purse ${Math.floor(g.purse)} gold</div>${needs}
+    <div class="hint">${doing(g)} · purse ${Math.floor(g.purse)} ${money()}</div>${needs}
     <button id="eject">Show them the door</button>`;
   $('eject').onclick = () => { send({ do: 'eject', guest: g.id }); selected = null; renderGuests(); };
 }
@@ -324,11 +355,11 @@ function logEvent(e) {
     }
     case 'arrive':
       names.set(e.guest, e.kind);
-      text = `${a(guestName(e.kind))} comes down the stairs.`;
+      text = `${a(guestName(e.kind))} ${look.arrive || 'comes in'}.`;
       break;
     case 'serve': {
       const s = catalog.services.find((x) => x.id === e.service);
-      text = `${guestName(names.get(e.guest))}: ${s?.name.toLowerCase() || e.service}, ${e.price} gold.`;
+      text = `${guestName(names.get(e.guest))}: ${s?.name.toLowerCase() || e.service}, ${e.price} ${money()}.`;
       floater(`+${e.price}`, e.x, e.y);
       break;
     }
@@ -350,6 +381,11 @@ function logEvent(e) {
   const log = $('log');
   log.prepend(li);
   while (log.children.length > 14) log.lastChild.remove();
+}
+
+// The money's name in a sentence: "3 gold", "3 credits".
+function money() {
+  return catalog.inn.money.toLowerCase();
 }
 
 function a(name) {
@@ -381,13 +417,13 @@ function showOver() {
   stopNight();
   const s = state.stats;
   $('overStats').innerHTML = `<table>
-    <tr><td>Gold</td><td>${Math.floor(global(catalog.inn.money))}</td></tr>
-    <tr><td>Reputation</td><td>${Math.round(global(catalog.inn.reputation))}</td></tr>
+    <tr><td>${catalog.inn.money}</td><td>${Math.floor(global(catalog.inn.money))}</td></tr>
+    <tr><td>${catalog.inn.reputation}</td><td>${Math.round(global(catalog.inn.reputation))}</td></tr>
     <tr><td>Guests</td><td>${s.arrived}</td></tr>
     <tr><td>Served</td><td>${s.served}</td></tr>
     <tr><td>Left happy</td><td>${s.happy}</td></tr>
     <tr><td>Left angry</td><td>${s.angry}</td></tr>
-    <tr><td>Earned</td><td>${Math.floor(s.earned)} gold</td></tr></table>`;
+    <tr><td>Earned</td><td>${Math.floor(s.earned)} ${money()}</td></tr></table>`;
   $('over').hidden = false;
 }
 

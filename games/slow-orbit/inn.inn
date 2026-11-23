@@ -1,0 +1,332 @@
+# The Slow Orbit: a bar and bunkhouse on a refuelling ring at the edge of the Tessel mining belt.
+# Between dock shifts you build out the ring and refit it; at station night the airlock opens and
+# pilots, miners, courier robots and the odd envoy come aboard: thirsty, hungry, tired, or flat.
+# The economy (brewing, printing meals, buying rations, scrubbing the air) is in economy.gbx.
+
+inn ring
+    name The Slow Orbit
+    grid 12 9
+    entrance 6 0 airlock        # the docking airlock
+    money Credits
+    reputation Rating 3         # a delighted guest adds 3, a furious one takes 3 away
+    start Credits 320
+    start Rating 5
+    start Fizz 10               # the tanks and lockers are stocked for the first night
+    start Rations 8
+    nights 7                    # a season
+    guests 14                   # at most this many aboard at once
+end
+
+# ---------- phases ----------
+
+phase dock
+    name Dock shift: build and refit
+    build
+    set Open 0
+end
+
+phase night
+    name Station night: airlock open
+    length 180
+    open
+    night
+    set Open 1
+    arrive 0.06 per Rating 0.003   # more ships dock as the rating climbs
+end
+
+# ---------- layers (GlassBox maps on the built cells) ----------
+
+layer Noise
+    decay 0.25
+    diffuse 0.15
+    max 30
+    colour ff9f1c
+end
+
+# Everyone who breathes adds to it; it barely leaks away on its own, so the ring needs scrubbers.
+layer CO2
+    decay 0.01
+    diffuse 0.25
+    max 40
+    colour 5ee0c0
+end
+
+# ---------- rooms (cost per cell built) ----------
+
+room airlock
+    name Airlock deck
+    cost 6
+    colour 8a93a8
+    floor floor-detail
+end
+
+room lounge
+    name Lounge
+    cost 10
+    colour f29b38
+    floor floor-panel
+end
+
+room galley
+    name Galley
+    cost 12
+    colour e4cf4a
+    floor floor-panel-straight
+end
+
+room hold
+    name Cargo hold
+    cost 8
+    colour 6b7590
+    floor floor
+end
+
+room cabins
+    name Cabins
+    cost 10
+    colour 5d86e0
+    floor floor-panel
+end
+
+# ---------- needs ----------
+
+need Thirst
+    name Thirst
+    urgent 50
+end
+
+need Hunger
+    name Hunger
+    urgent 55
+end
+
+need Rest
+    name Rest
+    urgent 60
+end
+
+need Charge
+    name Charge
+    urgent 50
+end
+
+# ---------- furniture and machines ----------
+# Model hints are parts of the Space Station Kit: `name:x:z:degrees:scale`, x and z in cells.
+
+unit bar
+    name Drinks counter
+    in lounge
+    cost 50
+    seats 3
+    model table-large computer-screen:0:-0.15:0:0.7 chair-cushion:-0.28:0.32:180 chair-cushion:0.28:0.32:180
+end
+
+unit table
+    name Mess table
+    in lounge
+    cost 20
+    seats 2
+    model table chair:0:-0.3:0 chair:0:0.3:180
+end
+
+unit printer
+    name Food printer
+    in galley
+    cost 60
+    seats 0
+    model computer-system
+end
+
+unit locker
+    name Cold store
+    in galley hold
+    cost 30
+    seats 0
+    model container-wide
+end
+
+unit tanks
+    name Fizz tanks
+    in hold
+    cost 40
+    seats 0
+    model container-flat:0:-0.1 container:0.3:0.25:0:0.8
+end
+
+unit scrubber
+    name Air scrubber
+    in airlock lounge galley cabins
+    cost 25
+    seats 0
+    model container-tall pipe-ring-colored:0:0:0:1.3
+end
+
+unit charger
+    name Charging post
+    in airlock lounge
+    cost 35
+    seats 2
+    model computer
+end
+
+unit pod
+    name Sleep pods
+    in cabins
+    cost 30
+    seats 2
+    model bed-single-cover:-0.2:0 bed-single-cover:0.2:0
+end
+
+unit berth
+    name Cabin berth
+    in cabins
+    cost 45
+    seats 1
+    model bed-double-cover:-0.15:0
+end
+
+# ---------- services ----------
+
+service fizz
+    name A bulb of fizz
+    at bar
+    need Thirst 60
+    global Fizz in 1
+    price 3
+    time 4
+    map Noise out 3 radius 1
+end
+
+service meal
+    name A printed meal
+    at table
+    need Hunger 70
+    global Meals in 1
+    price 5
+    time 8
+    map Noise out 1
+end
+
+service pod
+    name A sleep pod
+    at pod
+    need Rest 90
+    price 6
+    time 50
+end
+
+service berth
+    name A cabin berth
+    at berth
+    need Rest 100
+    price 10
+    time 40
+end
+
+service charge
+    name A recharge
+    at charger
+    need Charge 90
+    price 4
+    time 12
+end
+
+# ---------- guests ----------
+
+guest pilot
+    name Freighter pilot
+    weight 6
+    purse 20 45
+    stay 90 160
+    patience 25
+    need Thirst 0.9 45
+    need Hunger 0.6 30
+    need Rest 0.5 20
+    dislike map Noise greater 10 0.004
+    dislike map CO2 greater 12 0.004
+    map Noise out 0.4
+    map CO2 out 0.25
+    model character-female-a
+end
+
+guest courier
+    name Courier robot
+    weight 3
+    purse 15 30
+    stay 50 90
+    patience 30
+    need Charge 1.2 55
+    map Noise out 0.2
+    model character-robot
+end
+
+guest miner
+    name Belt miner
+    weight 3
+    if global Rating atLeast 10
+    purse 30 70
+    stay 100 170
+    patience 35
+    need Thirst 1.4 60
+    need Hunger 0.5 20
+    need Rest 0.4 10
+    dislike map CO2 greater 20 0.004
+    map Noise out 0.8
+    map CO2 out 0.35
+    model character-worker
+end
+
+guest envoy
+    name Envoy
+    weight 2
+    if global Rating atLeast 25
+    purse 50 110
+    stay 80 140
+    patience 20
+    need Thirst 0.3 10
+    need Hunger 0.5 40
+    need Rest 0.9 50
+    dislike map Noise greater 4 0.01
+    dislike map CO2 greater 5 0.006
+    map Noise out 0.1
+    map CO2 out 0.15
+    model character-alien
+end
+
+guest smuggler
+    name Smuggler
+    weight 2
+    purse 5 15
+    stay 60 120
+    patience 40
+    need Thirst 0.8 30
+    need Hunger 0.9 50
+    need Rest 0.2 0
+    map Noise out 0.6
+    map CO2 out 0.3
+    model character-raider
+end
+
+# ---------- how it looks (read by the browser game, not by the engine) ----------
+
+look station
+    models station glb                   # web/models/station/<name>.glb: Kenney Space Station Kit
+    characters guests glb                # web/models/guests/<name>.glb: Kenney Mini Characters
+    scale 4                              # the kit's pieces are one unit wide; a cell is four
+    furniture 3
+    floor-y -1.17                        # the floor plates are thick: sink them to the deck
+    wall wall
+    window wall-window 3                 # a window on some of the back walls
+    entrance wall-door-wide 1 0          # the airlock door
+    background 080b17
+    ground none                          # nothing under the ring but stars
+    stars 900
+    grid 26304f 1a2140
+    edge 3d4a7a
+    light dfe8ff 1c2340
+    loading Pressurising the airlock
+    arrive comes aboard through the airlock
+    seeds orbit comet nebula airlock quasar rivet ion drift beacon hull tessel
+    help help.html
+    style style.css
+end

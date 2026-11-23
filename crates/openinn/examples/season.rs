@@ -18,9 +18,10 @@ fn main() {
         vec!["1".into(), "2".into(), "3".into()]
     };
     let rs = load_dir(std::path::Path::new(&dir)).unwrap_or_else(|e| panic!("{e}"));
+    let plan = bot::plan_for(std::path::Path::new(&dir));
     for seed in seeds {
         let mut g = Game::new(rs.clone(), &seed);
-        let log = bot::season(&mut g);
+        let log = bot::season_with(&mut g, &plan);
         let mut night = 0;
         let mut why: BTreeMap<String, u32> = BTreeMap::new();
         let (mut served, mut arrived, mut moods) = (
@@ -31,7 +32,7 @@ fn main() {
         println!("seed {seed}");
         for e in &log {
             match e {
-                Event::Phase { phase, .. } if phase == "day" && night > 0 => {
+                Event::Phase { phase, .. } if !is_night(&g, phase) && night > 0 => {
                     report(night, &arrived, &served, &why, &moods);
                     (why, served, arrived, moods) = (
                         BTreeMap::new(),
@@ -40,7 +41,7 @@ fn main() {
                         Vec::new(),
                     );
                 }
-                Event::Phase { phase, .. } if phase == "night" => night += 1,
+                Event::Phase { phase, .. } if is_night(&g, phase) => night += 1,
                 Event::Arrive { kind, .. } => *arrived.entry(kind.clone()).or_default() += 1,
                 Event::Serve { service, .. } => *served.entry(service.clone()).or_default() += 1,
                 Event::Leave {
@@ -62,6 +63,10 @@ fn main() {
             }
         }
     }
+}
+
+fn is_night(g: &Game, phase: &str) -> bool {
+    g.rs.phases.iter().any(|p| p.id == phase && p.night)
 }
 
 fn report(

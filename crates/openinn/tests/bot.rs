@@ -1,57 +1,44 @@
 #![allow(dead_code)]
-//! A plain innkeeper for tests and balance runs: each day it works down a fixed plan of digging
-//! and building, doing what it can afford, then opens the doors and lets the night run.
+//! A plain innkeeper for tests and balance runs: each day it works down a ruleset's plan of
+//! digging and building (`bot.plan`), doing what it can afford, then opens the doors and lets the
+//! night run.
 
 use openinn::{Command, Event, Game};
+use std::path::{Path, PathBuf};
 
-/// The Gilded Mimic's plan around the stairs at (6, 0): a hall running south, the taproom to
-/// the west with the kitchen and cellar behind it, the dormitory to the east.
+/// A ruleset's plan, from its `bot.plan`: `dig x y room` and `build x y unit` lines, in order.
+pub fn plan_for(dir: &Path) -> Vec<Command> {
+    let text = std::fs::read_to_string(dir.join("bot.plan"))
+        .unwrap_or_else(|e| panic!("{}: {e}", dir.join("bot.plan").display()));
+    let mut out = Vec::new();
+    for (i, line) in text.lines().enumerate() {
+        let w: Vec<&str> = line.split('#').next().unwrap().split_whitespace().collect();
+        if w.is_empty() {
+            continue;
+        }
+        let n = |k: usize| -> usize {
+            w.get(k)
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(|| panic!("bot.plan line {}: {line:?}", i + 1))
+        };
+        let name = w.get(3).map(|s| s.to_string()).unwrap_or_default();
+        out.push(match w[0] {
+            "dig" => Command::Dig { x: n(1), y: n(2), room: name },
+            "build" => Command::Build { x: n(1), y: n(2), unit: name },
+            _ => panic!("bot.plan line {}: {line:?}", i + 1),
+        });
+    }
+    out
+}
+
+/// The Gilded Mimic's folder.
+pub fn dungeon_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../games/dungeon-inn")
+}
+
+/// The Gilded Mimic's plan.
 pub fn plan() -> Vec<Command> {
-    let dig = |x, y, room: &str| Command::Dig {
-        x,
-        y,
-        room: room.into(),
-    };
-    let build = |x, y, unit: &str| Command::Build {
-        x,
-        y,
-        unit: unit.into(),
-    };
-    vec![
-        dig(6, 1, "hall"),
-        dig(6, 2, "hall"),
-        dig(5, 1, "taproom"),
-        dig(5, 2, "taproom"),
-        dig(4, 1, "taproom"),
-        dig(4, 2, "taproom"),
-        dig(3, 1, "kitchen"),
-        dig(2, 1, "kitchen"),
-        dig(3, 2, "cellar"),
-        build(5, 1, "bar"),
-        build(4, 2, "table"),
-        build(3, 1, "hearth"),
-        build(3, 2, "kegs"),
-        build(2, 1, "larder"),
-        // Day 2 and on, as money allows.
-        dig(6, 3, "hall"),
-        dig(7, 2, "dorm"),
-        dig(7, 3, "dorm"),
-        build(7, 2, "bunk"),
-        build(7, 3, "bunk"),
-        dig(5, 3, "taproom"),
-        dig(4, 3, "taproom"),
-        build(5, 3, "table"),
-        build(4, 3, "table"),
-        build(6, 2, "washtub"),
-        dig(8, 2, "dorm"),
-        dig(8, 3, "dorm"),
-        build(8, 2, "bed"),
-        build(8, 3, "bed"),
-        dig(5, 4, "taproom"),
-        build(5, 4, "bar"),
-        dig(9, 2, "dorm"),
-        build(9, 2, "bed"),
-    ]
+    plan_for(&dungeon_dir())
 }
 
 /// Gold the bot keeps back for the night's ale and provisions.
@@ -65,9 +52,13 @@ fn cost(g: &Game, c: &Command) -> f64 {
     }
 }
 
-/// Plays a whole season; returns every event.
+/// Plays a whole season of The Gilded Mimic; returns every event.
 pub fn season(g: &mut Game) -> Vec<Event> {
-    let plan = plan();
+    season_with(g, &plan())
+}
+
+/// Plays a whole season following a plan; returns every event.
+pub fn season_with(g: &mut Game, plan: &[Command]) -> Vec<Event> {
     let mut done = vec![false; plan.len()];
     let mut log = Vec::new();
     while !g.over {

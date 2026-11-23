@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>OpenInn: The Gilded Mimic</title>
-<meta name="description" content="Keep an inn on the third level of the dungeon: dig and furnish by day, serve adventurers by night.">
+<title>OpenInn</title>
+<meta name="description" content="Keep an inn: dig and furnish by day, serve your guests by night. Every rule is a GlassBox script.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='26' height='26' rx='5' fill='%23704a2e' stroke='%23221b2e' stroke-width='2'/%3E%3Cpath d='M10 11h10v11a4 4 0 0 1-4 4h-2a4 4 0 0 1-4-4z' fill='%23f2c14e' stroke='%23221b2e' stroke-width='1.5'/%3E%3Cpath d='M20 14h2.5a2.5 2.5 0 0 1 0 5H20' fill='none' stroke='%23221b2e' stroke-width='1.5'/%3E%3Cpath d='M10 11c0-2 2-3 3.5-2 1-2 4-2 5 0 1.5 0 2 1 1.5 2z' fill='%23fff8e6' stroke='%23221b2e' stroke-width='1.2'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
 <body>
 <canvas id="scene"></canvas>
 
-<div id="loading"><div class="title">OpenInn</div><div class="sub" id="loadsub">Lighting the torches…</div><div class="bar"><i id="loadbar"></i></div></div>
+<div id="loading"><div class="title">OpenInn</div><div class="sub" id="loadsub">Opening up…</div><div class="bar"><i id="loadbar"></i></div></div>
 
 <div id="hud" hidden>
   <header id="top" class="card">
@@ -72,26 +72,18 @@
 
 <div id="help" class="modal" hidden>
   <div class="card">
-    <h2>The Gilded Mimic</h2>
-    <p>You keep an inn on the third level of the dungeon. Adventurers, dwarf miners, wizards and
-      goblin peddlers come down the stairs at night, thirsty, hungry and tired.</p>
-    <ol>
-      <li><b>By day, dig and furnish.</b> Dig rooms next to the inn, cell by cell, then put furniture in
-        them: a bar and tables in the taproom, a hearth and a larder in the kitchen, kegs in the
-        cellar, bunks and beds in the dormitory. Everything costs gold.</li>
-      <li><b>By night, the doors are open.</b> Guests walk to whatever serves their most pressing need,
-        pay and are served. The kegs tap ale and the hearth cooks stew from your stores, all night,
-        as long as there is gold to pay for them.</li>
-      <li><b>Mind the rooms.</b> Noise, heat and dirt spread from room to room (see <i>Show</i>). Wizards
-        hate noise; everyone hates dirt; a washtub's scullion scrubs the floors around it.</li>
-      <li><b>Reviews.</b> Happy guests raise your reputation, which brings more guests, and pickier ones:
-        dwarves at 10, wizards at 25. Guests who wait too long leave angry.</li>
-    </ol>
-    <p>A season is seven nights. The game saves itself as you play.</p>
+    <div id="helpBody">
+      <h2>How to play</h2>
+      <ol>
+        <li><b>By day, dig and furnish.</b> Dig rooms next to the inn, cell by cell, then furnish them.</li>
+        <li><b>By night, the doors are open.</b> Guests walk to whatever serves their most pressing need,
+          pay and are served.</li>
+        <li><b>Reviews.</b> Happy guests raise your reputation, which brings more guests.</li>
+      </ol>
+    </div>
     <p class="small">Controls: click a glowing square to dig or build; drag to move the view, right-drag
       (or two fingers) to turn it, wheel or pinch to zoom; space pauses the night.</p>
-    <p class="small">Every rule of the inn is a <a href="../rulesets.html">GlassBox script</a>; <a href="../">OpenInn's documentation</a> explains how to write your own.
-      Models: KayKit Dungeon Pack by Kay Lousberg and Mini Characters by Kenney (CC0). Code: GPL-3.0.</p>
+    <p class="small">Every rule of the inn is a <a href="../rulesets.html">GlassBox script</a>; <a href="../">OpenInn's documentation</a> explains how to write your own. Code: GPL-3.0.</p>
     <button class="primary" id="helpClose">To work</button>
   </div>
 </div>
