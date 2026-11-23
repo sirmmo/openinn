@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenInn: an inn-keeping engine whose rules are GlassBox scripts</title>
+<meta name="description" content="OpenInn is an open-source inn-keeping game engine: dig and furnish by day, serve guests by night, with every rule written as a GlassBox script.">
+<script>
+  // Links to the game from before it moved to play/ (…/openinn/?seed=…) still open the game.
+  if (/[?&](seed|game)=/.test(location.search)) location.replace('play/' + location.search + location.hash);
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='26' height='26' rx='5' fill='%23704a2e' stroke='%23221b2e' stroke-width='2'/%3E%3Cpath d='M10 11h10v11a4 4 0 0 1-4 4h-2a4 4 0 0 1-4-4z' fill='%23f2c14e' stroke='%23221b2e' stroke-width='1.5'/%3E%3Cpath d='M20 14h2.5a2.5 2.5 0 0 1 0 5H20' fill='none' stroke='%23221b2e' stroke-width='1.5'/%3E%3Cpath d='M10 11c0-2 2-3 3.5-2 1-2 4-2 5 0 1.5 0 2 1 1.5 2z' fill='%23fff8e6' stroke='%23221b2e' stroke-width='1.2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body class="home">
+<header class="bar">
+  <a class="brand" href="./">OpenInn</a>
+  <nav>
+    <a href="./" class="on">Overview</a>
+    <a href="rules.html">Rulesets</a>
+    <a href="engine.html">Engine</a>
+    <a href="rulesets.html">Examples</a>
+    <a href="https://github.com/sirmmo/openinn">GitHub</a>
+    <a class="play" href="play/">Play</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="pitch">
+    <h1>OpenInn</h1>
+    <p class="lead">An inn-keeping engine whose rules are scripts. By day you dig rooms and furnish
+      them; by night the doors open and guests come in with needs, a purse and limited patience.</p>
+    <p>The engine knows nothing about ale or dungeons. A <b>ruleset</b>, a folder of plain-text
+      files, declares the inn, its rooms, furniture, guests and what they pay for; the economy
+      between them is written in <a href="https://crates.io/crates/glassbox">GlassBox</a>.</p>
+    <div class="cta">
+      <a class="button" href="play/">Play The Gilded Mimic</a>
+      <a class="button ghost" href="rules.html">Write a ruleset</a>
+    </div>
+  </div>
+  <a class="shot" href="play/"><img src="shot.jpg" alt="The Gilded Mimic at night: a taproom, a kitchen and a dormitory dug into the rock, with guests at the bar and at the tables" width="1200" height="750"></a>
+</section>
+
+<section>
+  <h2>The Gilded Mimic</h2>
+  <p>The first ruleset: an inn on the third level of the dungeon, for adventurers, dwarf miners,
+    wizards and goblin peddlers on their way down. It runs in your browser, saves itself as you
+    play, and a season is seven nights.</p>
+  <ol class="steps">
+    <li><b>Dig by day.</b> Carve a taproom, a kitchen, a cellar and a dormitory out of the rock,
+      next to what you have already dug.</li>
+    <li><b>Furnish.</b> A bar and kegs for ale, a hearth and a larder for stew, bunks and beds for
+      the night, a washtub to keep the floors clean.</li>
+    <li><b>Open the doors.</b> Guests walk to whatever serves their most urgent need, pay, make
+      noise and mess, and leave a review.</li>
+    <li><b>Mind the rooms.</b> Noise, heat and dirt spread from room to room. Wizards hate noise;
+      everyone hates dirt.</li>
+    <li><b>Grow your name.</b> Reputation brings more guests and pickier ones: dwarves at 10,
+      wizards at 25.</li>
+  </ol>
+  <p><a class="button" href="play/">Play now</a></p>
+</section>
+
+<section>
+  <h2>How a ruleset works</h2>
+  <div class="cards">
+    <div class="c"><h3>Cells are places</h3><p>Every dug cell is a GlassBox place, joined to its
+      neighbours. Layers such as Noise, Heat and Dirt spread between cells and fade, so a rowdy
+      taproom keeps the dormitory next door awake.</p></div>
+    <div class="c"><h3>Furniture is units</h3><p>Furniture and stations are GlassBox units running
+      ordinary unit rules: the keg rack taps barrels, the hearth cooks stew and warms the rooms
+      around it, the washtub scrubs the floors.</p></div>
+    <div class="c"><h3>Phases set flags</h3><p>Phases set global resources when they start
+      (<code>set Night 1</code>), so a rule that should run only at night tests
+      <code>global Night atLeast 1</code>.</p></div>
+    <div class="c"><h3>Guests are people</h3><p>Guests are what GlassBox has no words for: needs
+      that grow every tick, dislikes, a purse, patience and a mood. Their reviews move the inn's
+      reputation.</p></div>
+  </div>
+  <p>A service, in the language of <code>inn.inn</code>:</p>
+<pre><code>service ale
+    name A mug of ale
+    at bar                     # unit kinds that offer it
+    need Thirst 60             # takes this much off the need
+    global Ale in 1            # uses up one of the inn's stores
+    price 3                    # paid into the inn's money
+    time 4                     # ticks the guest stays at the bar
+    map Noise out 3 radius 1   # and the noise it makes
+end</code></pre>
+  <p>And the rule that keeps it going, in GlassBox (<code>economy.gbx</code>):</p>
+<pre><code># The keg rack taps a barrel when the bar runs low; every mug costs the inn a little gold.
+unitRule tap
+    appliesTo kegs
+    rate 2
+    global Night atLeast 1
+    global Ale less 12
+    global Gold in 0.6
+    global Ale out 1
+end</code></pre>
+</section>
+
+<section>
+  <h2>Documentation</h2>
+  <div class="cards">
+    <a class="c link" href="rules.html"><h3>Rulesets</h3><p>Every block a ruleset can declare:
+      inn, phase, layer, room, unit, need, service and guest, with their keys.</p></a>
+    <a class="c link" href="engine.html"><h3>Engine</h3><p>Commands, events and snapshots; the
+      engine from Rust and in the browser; determinism and saves.</p></a>
+    <a class="c link" href="rulesets.html"><h3>Examples</h3><p>The complete source of The Gilded
+      Mimic, to read or to copy as the start of your own inn.</p></a>
+    <a class="c link" href="https://github.com/sirmmo/openinn"><h3>Source</h3><p>The engine, the
+      browser game and the rulesets on GitHub, under the GPL.</p></a>
+  </div>
+  <p class="soon">Coming: staff to hire for the night, and more rulesets, starting with a bar on
+    a space station.</p>
+</section>
+
+<footer>
+  OpenInn · code GPL-3.0-or-later · rules in <a href="https://crates.io/crates/glassbox">GlassBox</a><br>
+  3D models: <a href="https://kaylousberg.com">KayKit Dungeon Pack</a> by Kay Lousberg and
+  <a href="https://kenney.nl">Mini Characters</a> by Kenney (CC0) ·
+  <a href="https://threejs.org">three.js</a> (MIT) · fonts Cinzel and Fredoka (OFL)
+</footer>
+</body>
+</html>

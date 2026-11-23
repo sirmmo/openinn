@@ -1,5 +1,5 @@
-# Tests the engine, then publishes the game (the page, the engine as WebAssembly, the rulesets)
-# to GitHub Pages.
+# Tests the engine, then publishes the site to GitHub Pages: the documentation at the root and,
+# in play/, the game (the page, the engine as WebAssembly, the rulesets).
 name: Test and deploy
 
 on:

@@ -13,7 +13,7 @@ between them is plain [GlassBox](https://crates.io/crates/glassbox), the same ru
 The first ruleset is **The Gilded Mimic** (`games/dungeon-inn`): an inn on the third level of
 the dungeon, for adventurers, dwarf miners, wizards and goblin peddlers on their way down.
 
-**Play:** https://ingmmo.com/openinn/
+**Play:** https://ingmmo.com/openinn/play/ · **Documentation:** https://ingmmo.com/openinn/
 
 ## How a ruleset works
 
@@ -32,7 +32,8 @@ the dungeon, for adventurers, dwarf miners, wizards and goblin peddlers on their
   long leave angry; everyone leaves a review that moves the inn's reputation, which brings more
   guests and unlocks pickier ones (`if global Reputation atLeast 25`).
 
-The language is described in [docs/RULES.md](docs/RULES.md).
+The language is described in [docs/RULES.md](docs/RULES.md), and the engine (commands, events,
+snapshots, the WebAssembly messages) in [docs/ENGINE.md](docs/ENGINE.md).
 
 ## Determinism and saves
 
@@ -45,7 +46,7 @@ and stays. The same ruleset, seed and commands give the same inn on every machin
 ```sh
 cargo test                                            # rules, determinism, a whole season
 cargo run --example season -- games/dungeon-inn 1 2   # a bot plays seasons and reports each night
-sh tools/site.sh && python3 -m http.server -d _site   # the game in the browser, on port 8000
+sh tools/site.sh && python3 -m http.server -d _site   # the docs on port 8000, the game in play/
 ```
 
 The browser game is the engine compiled to WebAssembly (`crates/openinn-web`, JSON messages, no
@@ -62,7 +63,8 @@ sends a command.
 | `games/dungeon-inn/` | The Gilded Mimic: `inn.inn` (declarations), `economy.gbx` (GlassBox rules) |
 | `crates/openinn-web/` | The engine as WebAssembly: `start`, `apply`, `view`, `save` messages |
 | `web/` | The page: `js/engine.js` (wasm), `js/view.js` (three.js), `js/main.js` (interface) |
-| `tools/site.sh` | Builds `_site/` for GitHub Pages |
+| `site/`, `docs/` | The documentation site: the overview page, and the pages rendered from `docs/*.md` |
+| `tools/site.sh` | Builds `_site/` for GitHub Pages: the documentation at the root, the game in `play/` |
 
 Still to come: staff to hire for the night, and more rulesets: an original sci-fi station bar
 is the next candidate.
