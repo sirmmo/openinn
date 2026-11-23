@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>OpenInn: The Gilded Mimic</title>
+<meta name="description" content="Keep an inn on the third level of the dungeon: dig and furnish by day, serve adventurers by night.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='26' height='26' rx='5' fill='%23704a2e' stroke='%23221b2e' stroke-width='2'/%3E%3Cpath d='M10 11h10v11a4 4 0 0 1-4 4h-2a4 4 0 0 1-4-4z' fill='%23f2c14e' stroke='%23221b2e' stroke-width='1.5'/%3E%3Cpath d='M20 14h2.5a2.5 2.5 0 0 1 0 5H20' fill='none' stroke='%23221b2e' stroke-width='1.5'/%3E%3Cpath d='M10 11c0-2 2-3 3.5-2 1-2 4-2 5 0 1.5 0 2 1 1.5 2z' fill='%23fff8e6' stroke='%23221b2e' stroke-width='1.2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="loading"><div class="title">OpenInn</div><div class="sub" id="loadsub">Lighting the torches…</div><div class="bar"><i id="loadbar"></i></div></div>
+
+<div id="hud" hidden>
+  <header id="top" class="card">
+    <div class="name" id="innName"></div>
+    <div class="phase"><b id="dayLabel"></b> <span id="phaseLabel"></span></div>
+    <div class="stats">
+      <span class="stat" title="Gold"><i class="coin"></i><b id="gold">0</b></span>
+      <span class="stat" title="Reputation"><i class="star"></i><b id="rep">0</b></span>
+      <span class="stat" title="Guests inside"><i class="guest"></i><b id="guestCount">0</b></span>
+    </div>
+    <div class="progress" id="nightBar" hidden><i id="nightFill"></i></div>
+  </header>
+
+  <aside id="tools" class="card">
+    <div id="buildTools">
+      <h3>Dig</h3>
+      <div class="grid" id="digButtons"></div>
+      <h3>Furnish</h3>
+      <div class="grid" id="unitButtons"></div>
+      <button class="tool wide" id="removeTool" data-tool="remove">Remove (half back)</button>
+      <button class="primary" id="openDoors">Open the doors</button>
+    </div>
+    <div id="nightTools" hidden>
+      <h3>Tonight</h3>
+      <div class="speeds">
+        <button data-speed="0" title="Pause (space)">❚❚</button>
+        <button data-speed="1" title="Normal">▶</button>
+        <button data-speed="2" title="Fast">▶▶</button>
+        <button data-speed="4" title="Faster">▶▶▶</button>
+      </div>
+      <p class="hint">The rooms run themselves at night. Click a guest to see what they want, or show a troublemaker the door.</p>
+      <div id="guestList"></div>
+    </div>
+  </aside>
+
+  <div id="layers" class="card">
+    <span>Show</span>
+    <button data-layer="" class="on">Rooms</button>
+  </div>
+
+  <div id="topright">
+    <button class="icon" id="bHelp" title="How to play" aria-label="How to play">?</button>
+    <button class="icon" id="bMenu" title="Menu" aria-label="Menu">☰</button>
+  </div>
+  <div id="menu" class="card" hidden>
+    <button id="mNew">Start a new inn</button>
+    <button id="mLink">Copy a link to this inn's seed</button>
+    <button id="mSave">Download the save</button>
+  </div>
+
+  <div id="guestCard" class="card" hidden></div>
+  <ol id="log"></ol>
+  <div id="floaters"></div>
+  <div id="toast" hidden></div>
+</div>
+
+<div id="help" class="modal" hidden>
+  <div class="card">
+    <h2>The Gilded Mimic</h2>
+    <p>You keep an inn on the third level of the dungeon. Adventurers, dwarf miners, wizards and
+      goblin peddlers come down the stairs at night, thirsty, hungry and tired.</p>
+    <ol>
+      <li><b>By day, dig and furnish.</b> Dig rooms next to the inn, cell by cell, then put furniture in
+        them: a bar and tables in the taproom, a hearth and a larder in the kitchen, kegs in the
+        cellar, bunks and beds in the dormitory. Everything costs gold.</li>
+      <li><b>By night, the doors are open.</b> Guests walk to whatever serves their most pressing need,
+        pay and are served. The kegs tap ale and the hearth cooks stew from your stores, all night,
+        as long as there is gold to pay for them.</li>
+      <li><b>Mind the rooms.</b> Noise, heat and dirt spread from room to room (see <i>Show</i>). Wizards
+        hate noise; everyone hates dirt; a washtub's scullion scrubs the floors around it.</li>
+      <li><b>Reviews.</b> Happy guests raise your reputation, which brings more guests, and pickier ones:
+        dwarves at 10, wizards at 25. Guests who wait too long leave angry.</li>
+    </ol>
+    <p>A season is seven nights. The game saves itself as you play.</p>
+    <p class="small">Controls: click a glowing square to dig or build; drag to move the view, right-drag
+      (or two fingers) to turn it, wheel or pinch to zoom; space pauses the night.</p>
+    <p class="small">Every rule of the inn is a <a href="https://github.com/sirmmo/openinn/tree/main/games/dungeon-inn">GlassBox script</a>.
+      Models: KayKit Dungeon Pack by Kay Lousberg and Mini Characters by Kenney (CC0). Code: GPL-3.0.</p>
+    <button class="primary" id="helpClose">To work</button>
+  </div>
+</div>
+
+<div id="over" class="modal" hidden>
+  <div class="card">
+    <h2>The season is over</h2>
+    <div id="overStats"></div>
+    <button class="primary" id="overNew">Open a new inn</button>
+    <button id="overLook">Look at the inn</button>
+  </div>
+</div>
+
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

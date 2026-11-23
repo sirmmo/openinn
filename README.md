@@ -1,0 +1,80 @@
+# OpenInn
+
+An inn-keeping engine whose rules are GlassBox scripts. By day you dig rooms and furnish them;
+by night the doors open and guests come in with needs, a purse and limited patience. They walk
+to whatever serves their most pressing need, pay, make noise and mess, and leave a review that
+decides who comes next.
+
+The engine knows nothing about ale or dungeons. A **ruleset** (a folder of `*.inn` and `*.gbx`
+files) declares the inn, its phases, rooms, furniture, needs, services and guests; the economy
+between them is plain [GlassBox](https://crates.io/crates/glassbox), the same rule language as
+[Lilienstern](https://github.com/sirmmo/lilienstern) and OpenFactor's packs.
+
+The first ruleset is **The Gilded Mimic** (`games/dungeon-inn`): an inn on the third level of
+the dungeon, for adventurers, dwarf miners, wizards and goblin peddlers on their way down.
+
+**Play:** https://sirmmo.github.io/openinn/
+
+## How a ruleset works
+
+* Every dug **cell is a GlassBox place**; neighbouring cells are joined. Layers (maps) such as
+  Noise, Heat and Dirt spread between cells and fade, so a rowdy taproom keeps the dormitory
+  next door awake.
+* Furniture and stations are **GlassBox units** on cells, running ordinary `unitRule`s: the
+  keg rack taps barrels, the hearth cooks stew and warms the rooms around it, the larder buys
+  provisions, the washtub's scullion scrubs the floors.
+* **Phases** set global resources when they start (`set Night 1`), so rules that should run
+  only at night simply test `global Night atLeast 1`.
+* **Guests** are what GlassBox has no words for: persistent people with needs that grow every
+  tick, dislikes (tests on the layers where they stand), a purse, patience and a mood. A guest
+  with an urgent need walks (breadth first) to the nearest unit offering a **service** for it
+  with a free seat and the stock it takes, pays, and is served for a while. Guests who wait too
+  long leave angry; everyone leaves a review that moves the inn's reputation, which brings more
+  guests and unlocks pickier ones (`if global Reputation atLeast 25`).
+
+The language is described in [docs/RULES.md](docs/RULES.md).
+
+## Determinism and saves
+
+No hash-ordered iteration, no transcendental functions, a seeded xorshift for arrivals, purses
+and stays. The same ruleset, seed and commands give the same inn on every machine, so a save is
+`{ seed, commands }` and `Game::replay` rebuilds it.
+
+## Development
+
+```sh
+cargo test                                            # rules, determinism, a whole season
+cargo run --example season -- games/dungeon-inn 1 2   # a bot plays seasons and reports each night
+sh tools/site.sh && python3 -m http.server -d _site   # the game in the browser, on port 8000
+```
+
+The browser game is the engine compiled to WebAssembly (`crates/openinn-web`, JSON messages, no
+generated glue) and a plain-JS page (`web/`, three.js, no build step). It loads a ruleset's files
+from `games/<id>/` (`?game=<id>`, default `dungeon-inn`) and saves the game in localStorage as its
+seed and commands. In the console, `openinn.send({ do: 'dig', x: 6, y: 1, room: 'hall' })`
+sends a command.
+
+| Path | What |
+| --- | --- |
+| `crates/openinn/src/script.rs` | OpenInn's blocks, compiled next to GlassBox's |
+| `crates/openinn/src/sim.rs` | The game: cells, units, guests, phases, commands, snapshots |
+| `crates/openinn/tests/` | Tests and the bot innkeeper they share with the example |
+| `games/dungeon-inn/` | The Gilded Mimic: `inn.inn` (declarations), `economy.gbx` (GlassBox rules) |
+| `crates/openinn-web/` | The engine as WebAssembly: `start`, `apply`, `view`, `save` messages |
+| `web/` | The page: `js/engine.js` (wasm), `js/view.js` (three.js), `js/main.js` (interface) |
+| `tools/site.sh` | Builds `_site/` for GitHub Pages |
+
+Still to come: staff to hire for the night, and more rulesets: an original sci-fi station bar
+is the next candidate.
+
+## Credits
+
+- 3D models: [KayKit Dungeon Pack](https://kaylousberg.com) by Kay Lousberg and
+  [Mini Characters](https://kenney.nl) by Kenney, both CC0 (licences in `web/models/*/`).
+- [three.js](https://threejs.org) r160, MIT (`web/vendor/three-LICENSE.txt`).
+- Rules in [GlassBox](https://crates.io/crates/glassbox).
+- Fonts: Cinzel and Fredoka from Google Fonts (OFL).
+
+## Licence
+
+Code: GPL-3.0-or-later, see `LICENSE`. Models: CC0.

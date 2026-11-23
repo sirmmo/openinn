@@ -1,0 +1,720 @@
+//! A ruleset: GlassBox blocks (`unitRule`, `mapRule`...) compiled by the `glassbox` crate, plus
+//! OpenInn's own blocks, all in the same `kind name ... end` form:
+//!
+//! ```text
+//! inn dungeon          # the house: grid, entrance, money, how a season ends
+//! phase night          # the day's phases, in order: what they allow, what they set
+//! layer Noise          # a GlassBox map with decay, diffusion and bounds
+//! room taproom         # a kind of room you dig, cell by cell
+//! unit bar             # a piece of furniture or a station: where it may stand, what it costs
+//! need Thirst          # something guests feel
+//! service ale          # what a unit gives a guest for a need, and what it takes
+//! guest adventurer     # a kind of guest: purse, needs, dislikes, when they come
+//! ```
+//!
+//! Every name is declared before it is used, and every error names its file and line.
+
+use glassbox::{compile, number, split_blocks, tokenize, Block, Cmp, Error, Line, Rules, Scope};
+
+/// OpenInn's block kinds, compiled here; everything else goes to GlassBox.
+pub const HOST_KINDS: [&str; 8] = [
+    "inn", "phase", "layer", "room", "unit", "need", "service", "guest",
+];
+
+#[derive(Clone, Debug, Default)]
+pub struct InnDef {
+    pub id: String,
+    pub name: String,
+    pub width: usize,
+    pub height: usize,
+    pub entrance: (usize, usize),
+    /// The room kind the entrance cell starts as.
+    pub entrance_room: usize,
+    /// Global resource that guests pay in and building costs.
+    pub money: usize,
+    /// Global resource raised by happy guests and lowered by angry ones.
+    pub reputation: usize,
+    /// Reputation change for a guest leaving with mood 1 (and minus this for mood 0).
+    pub review: f64,
+    /// Global resources at the start.
+    pub start: Vec<(usize, f64)>,
+    /// The season ends after this many nights (phases marked `night`).
+    pub nights: u32,
+    /// At most this many guests at once.
+    pub max_guests: usize,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct PhaseDef {
+    pub id: String,
+    pub name: String,
+    /// Ticks; 0 means the phase waits for the player (`next`).
+    pub length: u32,
+    /// Digging and building are allowed.
+    pub build: bool,
+    /// Guests are simulated (arrive, move, are served).
+    pub open: bool,
+    /// Counts towards the season's `nights`.
+    pub night: bool,
+    /// Global resources set when the phase starts.
+    pub set: Vec<(usize, f64)>,
+    /// Chance per tick that a guest arrives, plus `per` times a global resource.
+    pub arrive: f64,
+    pub arrive_per: Option<(usize, f64)>,
+}
+
+#[derive(Clone, Debug)]
+pub struct RoomDef {
+    pub id: String,
+    pub name: String,
+    pub cost: f64,
+    pub colour: String,
+    pub floor: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct UnitKind {
+    pub id: String,
+    /// Index in GlassBox's `rules.units`.
+    pub def: usize,
+    pub name: String,
+    pub cost: f64,
+    /// Room kinds it may stand in (empty: any).
+    pub rooms: Vec<usize>,
+    pub seats: u32,
+    /// Local stock the unit starts with.
+    pub start: Vec<(usize, f64)>,
+    pub model: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct NeedDef {
+    pub id: String,
+    pub name: String,
+    /// A guest goes looking once a need reaches this.
+    pub urgent: f64,
+    pub max: f64,
+}
+
+/// What a service takes: a resource held by the inn (`global`) or by the unit (`local`).
+#[derive(Clone, Debug)]
+pub struct Take {
+    pub resource: usize,
+    pub amount: f64,
+}
+
+#[derive(Clone, Debug)]
+pub struct ServiceDef {
+    pub id: String,
+    pub name: String,
+    pub units: Vec<usize>,
+    pub need: usize,
+    /// How much of the need it takes away.
+    pub relief: f64,
+    pub takes: Vec<Take>,
+    pub price: f64,
+    /// Ticks it lasts; the guest stays at the unit meanwhile.
+    pub time: u32,
+    /// Map emissions at the unit's cell when it starts: (map, amount, radius).
+    pub emits: Vec<(usize, f64, u32)>,
+}
+
+/// A test on a map at the guest's cell or on a global resource.
+#[derive(Clone, Debug)]
+pub enum Test {
+    Map(usize, Cmp, f64),
+    Global(usize, Cmp, f64),
+}
+
+#[derive(Clone, Debug)]
+pub struct GuestDef {
+    pub id: String,
+    pub name: String,
+    pub weight: f64,
+    pub purse: (f64, f64),
+    pub stay: (u32, u32),
+    pub patience: u32,
+    /// (need, growth per tick, starting value)
+    pub needs: Vec<(usize, f64, f64)>,
+    /// Each tick at a cell where one of these holds, mood drops by `amount`.
+    pub dislikes: Vec<(Test, f64)>,
+    /// All must hold for this guest to arrive.
+    pub when: Vec<Test>,
+    /// Map emissions at the guest's cell every tick.
+    pub emits: Vec<(usize, f64, u32)>,
+    pub model: String,
+}
+
+/// A compiled ruleset.
+#[derive(Clone, Debug, Default)]
+pub struct Ruleset {
+    pub rules: Rules,
+    pub inn: InnDef,
+    pub phases: Vec<PhaseDef>,
+    pub rooms: Vec<RoomDef>,
+    pub units: Vec<UnitKind>,
+    pub needs: Vec<NeedDef>,
+    pub services: Vec<ServiceDef>,
+    pub guests: Vec<GuestDef>,
+    pub warnings: Vec<String>,
+}
+
+impl Ruleset {
+    pub fn room(&self, id: &str) -> Option<usize> {
+        self.rooms.iter().position(|r| r.id == id)
+    }
+    pub fn unit(&self, id: &str) -> Option<usize> {
+        self.units.iter().position(|u| u.id == id)
+    }
+    pub fn need(&self, id: &str) -> Option<usize> {
+        self.needs.iter().position(|n| n.id == id)
+    }
+    pub fn guest(&self, id: &str) -> Option<usize> {
+        self.guests.iter().position(|g| g.id == id)
+    }
+}
+
+/// Compiles a ruleset from `(file name, text)` pairs, in order. OpenInn's declarations are read
+/// first, from every file, so GlassBox rules can name units declared in any file.
+pub fn load(files: &[(String, String)]) -> Result<Ruleset, Error> {
+    let mut kinds: Vec<&str> = glassbox::KINDS.to_vec();
+    kinds.extend_from_slice(&HOST_KINDS);
+    let mut blocks: Vec<(String, Block)> = Vec::new();
+    for (name, text) in files {
+        for b in split_blocks(name, tokenize(text), &kinds)? {
+            if HOST_KINDS.contains(&b.kind.as_str()) {
+                blocks.push((name.clone(), b));
+            }
+        }
+    }
+    let mut rs = Ruleset::default();
+    // Declarations that others refer to, kind by kind.
+    for kind in ["layer", "room", "need", "unit"] {
+        for (f, b) in blocks.iter().filter(|(_, b)| b.kind == kind) {
+            match kind {
+                "layer" => layer(&mut rs, f, b)?,
+                "room" => room(&mut rs, f, b)?,
+                "need" => need(&mut rs, f, b)?,
+                _ => unit(&mut rs, f, b)?,
+            }
+        }
+    }
+    // GlassBox rules (they may name the units now).
+    for (name, text) in files {
+        let (w, _) = compile(&mut rs.rules, name, text, &HOST_KINDS)?;
+        rs.warnings.extend(w);
+    }
+    for kind in ["inn", "phase", "service", "guest"] {
+        for (f, b) in blocks.iter().filter(|(_, b)| b.kind == kind) {
+            match kind {
+                "inn" => inn(&mut rs, f, b)?,
+                "phase" => phase(&mut rs, f, b)?,
+                "service" => service(&mut rs, f, b)?,
+                _ => guest(&mut rs, f, b)?,
+            }
+        }
+    }
+    check(&rs)?;
+    Ok(rs)
+}
+
+/// Loads every `*.gbx` and `*.inn` file of a folder, in name order.
+pub fn load_dir(dir: &std::path::Path) -> Result<Ruleset, Error> {
+    let mut names: Vec<_> = std::fs::read_dir(dir)
+        .map_err(|e| Error::new(&dir.display().to_string(), 0, e.to_string()))?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| matches!(p.extension().and_then(|x| x.to_str()), Some("gbx" | "inn")))
+        .collect();
+    names.sort();
+    let mut files = Vec::new();
+    for p in names {
+        let text = std::fs::read_to_string(&p)
+            .map_err(|e| Error::new(&p.display().to_string(), 0, e.to_string()))?;
+        files.push((p.file_name().unwrap().to_string_lossy().into_owned(), text));
+    }
+    load(&files)
+}
+
+// ---------- helpers ----------
+
+fn err(f: &str, l: &Line, m: impl Into<String>) -> Error {
+    Error::new(f, l.no, m)
+}
+
+/// The words after the key, joined: free text such as names.
+fn text(l: &Line) -> String {
+    l.words[1..].join(" ")
+}
+
+fn word<'a>(f: &str, l: &'a Line, i: usize) -> Result<&'a str, Error> {
+    l.words
+        .get(i)
+        .map(String::as_str)
+        .ok_or_else(|| err(f, l, format!("{} is incomplete", l.words.join(" "))))
+}
+
+fn global(rs: &mut Rules, f: &str, l: &Line, id: &str) -> Result<usize, Error> {
+    rs.declare_resource(id, Scope::Global)
+        .map_err(|m| err(f, l, m))
+}
+
+/// `map X <cmp> v` or `global X <cmp> v`, from word `i`.
+fn test(rs: &mut Ruleset, f: &str, l: &Line, i: usize) -> Result<Test, Error> {
+    let what = word(f, l, i)?;
+    let id = word(f, l, i + 1)?;
+    let op = word(f, l, i + 2)?;
+    let cmp = Cmp::parse(op).ok_or_else(|| {
+        err(
+            f,
+            l,
+            format!("expected atLeast, atMost, greater, less or is, found {op:?}"),
+        )
+    })?;
+    let v = number(f, l, i + 3)?;
+    match what {
+        "map" => {
+            let m = rs
+                .rules
+                .map(id)
+                .ok_or_else(|| err(f, l, format!("there is no layer {id:?}")))?;
+            Ok(Test::Map(m, cmp, v))
+        }
+        "global" => Ok(Test::Global(global(&mut rs.rules, f, l, id)?, cmp, v)),
+        _ => Err(err(f, l, format!("expected map or global, found {what:?}"))),
+    }
+}
+
+/// `map X out amount [radius r]`.
+fn emission(rs: &Ruleset, f: &str, l: &Line) -> Result<(usize, f64, u32), Error> {
+    let id = word(f, l, 1)?;
+    if word(f, l, 2)? != "out" {
+        return Err(err(f, l, "only `map <layer> out <amount>` is allowed here"));
+    }
+    let m = rs
+        .rules
+        .map(id)
+        .ok_or_else(|| err(f, l, format!("there is no layer {id:?}")))?;
+    let radius = match l.words.iter().position(|w| w == "radius") {
+        Some(i) => number(f, l, i + 1)?.max(0.0) as u32,
+        None => 0,
+    };
+    Ok((m, number(f, l, 3)?, radius))
+}
+
+fn unknown(f: &str, b: &Block, l: &Line) -> Error {
+    err(
+        f,
+        l,
+        format!(
+            "{} {}: unknown line {:?}",
+            b.kind,
+            b.name,
+            l.words.join(" ")
+        ),
+    )
+}
+
+fn dup(f: &str, b: &Block) -> Error {
+    Error::new(f, b.no, format!("{} {} is declared twice", b.kind, b.name))
+}
+
+// ---------- blocks ----------
+
+fn layer(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    if rs.rules.map(&b.name).is_some() {
+        return Err(dup(f, b));
+    }
+    let m = rs.rules.declare_map(&b.name);
+    for l in &b.lines {
+        let v = number(f, l, 1)?;
+        let def = &mut rs.rules.maps[m];
+        match l.words[0].as_str() {
+            "decay" => def.decay = v.clamp(0.0, 1.0),
+            "diffuse" => def.diffuse = v.clamp(0.0, 1.0),
+            "min" => def.min = v,
+            "max" => def.max = v,
+            _ => return Err(unknown(f, b, l)),
+        }
+    }
+    Ok(())
+}
+
+fn room(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    if rs.room(&b.name).is_some() {
+        return Err(dup(f, b));
+    }
+    let mut r = RoomDef {
+        id: b.name.clone(),
+        name: b.name.clone(),
+        cost: 0.0,
+        colour: "#888888".into(),
+        floor: String::new(),
+    };
+    for l in &b.lines {
+        match l.words[0].as_str() {
+            "name" => r.name = text(l),
+            "cost" => r.cost = number(f, l, 1)?,
+            // Hex without `#` (which starts a comment): `colour b5734a`.
+            "colour" | "color" => r.colour = format!("#{}", word(f, l, 1)?.trim_start_matches('#')),
+            "floor" => r.floor = word(f, l, 1)?.to_string(),
+            _ => return Err(unknown(f, b, l)),
+        }
+    }
+    rs.rooms.push(r);
+    Ok(())
+}
+
+fn need(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    if rs.need(&b.name).is_some() {
+        return Err(dup(f, b));
+    }
+    let mut n = NeedDef {
+        id: b.name.clone(),
+        name: b.name.clone(),
+        urgent: 50.0,
+        max: 100.0,
+    };
+    for l in &b.lines {
+        match l.words[0].as_str() {
+            "name" => n.name = text(l),
+            "urgent" => n.urgent = number(f, l, 1)?,
+            "max" => n.max = number(f, l, 1)?,
+            _ => return Err(unknown(f, b, l)),
+        }
+    }
+    rs.needs.push(n);
+    Ok(())
+}
+
+fn unit(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    if rs.unit(&b.name).is_some() {
+        return Err(dup(f, b));
+    }
+    let mut name = b.name.clone();
+    let (mut cost, mut seats, mut rooms, mut start, mut model) =
+        (0.0, 1, Vec::new(), Vec::new(), String::new());
+    let mut starts: Vec<(String, f64, &Line)> = Vec::new();
+    for l in &b.lines {
+        match l.words[0].as_str() {
+            "name" => name = text(l),
+            "cost" => cost = number(f, l, 1)?,
+            "seats" => seats = number(f, l, 1)?.max(0.0) as u32,
+            "in" => {
+                for id in &l.words[1..] {
+                    rooms.push(
+                        rs.room(id)
+                            .ok_or_else(|| err(f, l, format!("there is no room {id:?}")))?,
+                    );
+                }
+            }
+            "start" => starts.push((word(f, l, 1)?.to_string(), number(f, l, 2)?, l)),
+            "model" => model = word(f, l, 1)?.to_string(),
+            _ => return Err(unknown(f, b, l)),
+        }
+    }
+    let def = rs.rules.declare_unit(&b.name, &name);
+    for (id, v, l) in starts {
+        start.push((
+            rs.rules
+                .declare_resource(&id, Scope::Local)
+                .map_err(|m| err(f, l, m))?,
+            v,
+        ));
+    }
+    rs.units.push(UnitKind {
+        id: b.name.clone(),
+        def,
+        name,
+        cost,
+        rooms,
+        seats,
+        start,
+        model,
+    });
+    Ok(())
+}
+
+fn inn(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    if !rs.inn.id.is_empty() {
+        return Err(Error::new(
+            f,
+            b.no,
+            format!("there is already an inn: {}", rs.inn.id),
+        ));
+    }
+    let mut d = InnDef {
+        id: b.name.clone(),
+        name: b.name.clone(),
+        review: 2.0,
+        nights: 7,
+        max_guests: 12,
+        ..Default::default()
+    };
+    let (mut money, mut rep, mut entrance_room) = (None, None, None);
+    for l in &b.lines {
+        match l.words[0].as_str() {
+            "name" => d.name = text(l),
+            "grid" => {
+                d.width = number(f, l, 1)? as usize;
+                d.height = number(f, l, 2)? as usize;
+            }
+            "entrance" => {
+                d.entrance = (number(f, l, 1)? as usize, number(f, l, 2)? as usize);
+                let id = word(f, l, 3)?;
+                entrance_room = Some(
+                    rs.room(id)
+                        .ok_or_else(|| err(f, l, format!("there is no room {id:?}")))?,
+                );
+            }
+            "money" => money = Some(global(&mut rs.rules, f, l, word(f, l, 1)?)?),
+            "reputation" => {
+                rep = Some(global(&mut rs.rules, f, l, word(f, l, 1)?)?);
+                if l.words.len() > 2 {
+                    d.review = number(f, l, 2)?;
+                }
+            }
+            "start" => {
+                let r = global(&mut rs.rules, f, l, word(f, l, 1)?)?;
+                d.start.push((r, number(f, l, 2)?));
+            }
+            "nights" => d.nights = number(f, l, 1)?.max(1.0) as u32,
+            "guests" => d.max_guests = number(f, l, 1)?.max(1.0) as usize,
+            _ => return Err(unknown(f, b, l)),
+        }
+    }
+    let at = |m: &str| Error::new(f, b.no, format!("inn {}: {m}", b.name));
+    d.money = money.ok_or_else(|| at("needs `money <global resource>`"))?;
+    d.reputation = rep.ok_or_else(|| at("needs `reputation <global resource>`"))?;
+    d.entrance_room = entrance_room.ok_or_else(|| at("needs `entrance <x> <y> <room>`"))?;
+    if d.width == 0 || d.height == 0 {
+        return Err(at("needs `grid <width> <height>`"));
+    }
+    if d.entrance.0 >= d.width || d.entrance.1 >= d.height {
+        return Err(at("the entrance is outside the grid"));
+    }
+    rs.inn = d;
+    Ok(())
+}
+
+fn phase(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    if rs.phases.iter().any(|p| p.id == b.name) {
+        return Err(dup(f, b));
+    }
+    let mut p = PhaseDef {
+        id: b.name.clone(),
+        name: b.name.clone(),
+        ..Default::default()
+    };
+    for l in &b.lines {
+        match l.words[0].as_str() {
+            "name" => p.name = text(l),
+            "length" => p.length = number(f, l, 1)?.max(0.0) as u32,
+            "build" => p.build = true,
+            "open" => p.open = true,
+            "night" => p.night = true,
+            "set" => {
+                let r = global(&mut rs.rules, f, l, word(f, l, 1)?)?;
+                p.set.push((r, number(f, l, 2)?));
+            }
+            // arrive 0.05 [per Reputation 0.001]
+            "arrive" => {
+                p.arrive = number(f, l, 1)?;
+                if l.words.get(2).map(String::as_str) == Some("per") {
+                    let r = global(&mut rs.rules, f, l, word(f, l, 3)?)?;
+                    p.arrive_per = Some((r, number(f, l, 4)?));
+                }
+            }
+            _ => return Err(unknown(f, b, l)),
+        }
+    }
+    rs.phases.push(p);
+    Ok(())
+}
+
+fn service(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    let mut s = ServiceDef {
+        id: b.name.clone(),
+        name: b.name.clone(),
+        units: Vec::new(),
+        need: usize::MAX,
+        relief: 0.0,
+        takes: Vec::new(),
+        price: 0.0,
+        time: 1,
+        emits: Vec::new(),
+    };
+    for l in &b.lines {
+        match l.words[0].as_str() {
+            "name" => s.name = text(l),
+            "at" => {
+                for id in &l.words[1..] {
+                    s.units.push(
+                        rs.unit(id)
+                            .ok_or_else(|| err(f, l, format!("there is no unit {id:?}")))?,
+                    );
+                }
+            }
+            "need" => {
+                let id = word(f, l, 1)?;
+                s.need = rs
+                    .need(id)
+                    .ok_or_else(|| err(f, l, format!("there is no need {id:?}")))?;
+                s.relief = number(f, l, 2)?;
+            }
+            "global" | "local" => {
+                let scope = if l.words[0] == "global" {
+                    Scope::Global
+                } else {
+                    Scope::Local
+                };
+                let id = word(f, l, 1)?;
+                if word(f, l, 2)? != "in" {
+                    return Err(err(
+                        f,
+                        l,
+                        "a service only takes: `global <resource> in <amount>`",
+                    ));
+                }
+                let resource = rs
+                    .rules
+                    .declare_resource(id, scope)
+                    .map_err(|m| err(f, l, m))?;
+                s.takes.push(Take {
+                    resource,
+                    amount: number(f, l, 3)?,
+                });
+            }
+            "price" => s.price = number(f, l, 1)?,
+            "time" => s.time = number(f, l, 1)?.max(1.0) as u32,
+            "map" => s.emits.push(emission(rs, f, l)?),
+            _ => return Err(unknown(f, b, l)),
+        }
+    }
+    if s.units.is_empty() || s.need == usize::MAX {
+        return Err(Error::new(
+            f,
+            b.no,
+            format!(
+                "service {} needs `at <unit>` and `need <need> <amount>`",
+                b.name
+            ),
+        ));
+    }
+    rs.services.push(s);
+    Ok(())
+}
+
+fn guest(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    if rs.guest(&b.name).is_some() {
+        return Err(dup(f, b));
+    }
+    let mut g = GuestDef {
+        id: b.name.clone(),
+        name: b.name.clone(),
+        weight: 1.0,
+        purse: (10.0, 10.0),
+        stay: (60, 60),
+        patience: 30,
+        needs: Vec::new(),
+        dislikes: Vec::new(),
+        when: Vec::new(),
+        emits: Vec::new(),
+        model: String::new(),
+    };
+    for l in &b.lines {
+        match l.words[0].as_str() {
+            "name" => g.name = text(l),
+            "weight" => g.weight = number(f, l, 1)?.max(0.0),
+            "purse" => g.purse = (number(f, l, 1)?, number(f, l, 2)?),
+            "stay" => g.stay = (number(f, l, 1)? as u32, number(f, l, 2)? as u32),
+            "patience" => g.patience = number(f, l, 1)?.max(1.0) as u32,
+            "need" => {
+                let id = word(f, l, 1)?;
+                let n = rs
+                    .need(id)
+                    .ok_or_else(|| err(f, l, format!("there is no need {id:?}")))?;
+                let start = if l.words.len() > 3 {
+                    number(f, l, 3)?
+                } else {
+                    0.0
+                };
+                g.needs.push((n, number(f, l, 2)?, start));
+            }
+            // dislike map Noise greater 6 0.02
+            "dislike" => {
+                let t = test(rs, f, l, 1)?;
+                g.dislikes.push((t, number(f, l, 5)?));
+            }
+            "if" => {
+                let t = test(rs, f, l, 1)?;
+                g.when.push(t);
+            }
+            "map" => g.emits.push(emission(rs, f, l)?),
+            "model" => g.model = word(f, l, 1)?.to_string(),
+            _ => return Err(unknown(f, b, l)),
+        }
+    }
+    if g.purse.1 < g.purse.0 || g.stay.1 < g.stay.0 {
+        return Err(Error::new(
+            f,
+            b.no,
+            format!("guest {}: purse and stay are `low high`", b.name),
+        ));
+    }
+    rs.guests.push(g);
+    Ok(())
+}
+
+fn check(rs: &Ruleset) -> Result<(), Error> {
+    let whole = |m: &str| Error::new("ruleset", 0, m);
+    if rs.inn.id.is_empty() {
+        return Err(whole("there is no inn block"));
+    }
+    if rs.phases.is_empty() {
+        return Err(whole("there are no phases"));
+    }
+    if !rs.phases.iter().any(|p| p.night) {
+        return Err(whole(
+            "no phase is marked `night`: the season would never end",
+        ));
+    }
+    if rs.guests.is_empty() {
+        return Err(whole("there are no guests"));
+    }
+    Ok(())
+}
+
+impl Ruleset {
+    /// What an interface needs to know about the ruleset: names, costs, colours, models.
+    pub fn catalog(&self) -> serde_json::Value {
+        use serde_json::json;
+        let res = |r: usize| self.rules.resources[r].id.clone();
+        json!({
+            "inn": {
+                "id": self.inn.id, "name": self.inn.name,
+                "width": self.inn.width, "height": self.inn.height,
+                "entrance": [self.inn.entrance.0, self.inn.entrance.1],
+                "money": res(self.inn.money), "reputation": res(self.inn.reputation),
+                "nights": self.inn.nights, "guests": self.inn.max_guests,
+            },
+            "phases": self.phases.iter().map(|p| json!({
+                "id": p.id, "name": p.name, "length": p.length, "build": p.build, "open": p.open, "night": p.night,
+            })).collect::<Vec<_>>(),
+            "layers": self.rules.maps.iter().map(|m| json!({ "id": m.id, "max": if m.max.is_finite() { m.max } else { 0.0 } })).collect::<Vec<_>>(),
+            "rooms": self.rooms.iter().map(|r| json!({
+                "id": r.id, "name": r.name, "cost": r.cost, "colour": r.colour, "floor": r.floor,
+            })).collect::<Vec<_>>(),
+            "units": self.units.iter().map(|u| json!({
+                "id": u.id, "name": u.name, "cost": u.cost, "seats": u.seats, "model": u.model,
+                "rooms": u.rooms.iter().map(|&r| self.rooms[r].id.clone()).collect::<Vec<_>>(),
+                "services": self.services.iter().filter(|s| s.units.contains(&self.unit(&u.id).unwrap()))
+                    .map(|s| s.id.clone()).collect::<Vec<_>>(),
+            })).collect::<Vec<_>>(),
+            "needs": self.needs.iter().map(|n| json!({ "id": n.id, "name": n.name, "urgent": n.urgent, "max": n.max })).collect::<Vec<_>>(),
+            "services": self.services.iter().map(|s| json!({
+                "id": s.id, "name": s.name, "need": self.needs[s.need].id, "price": s.price, "time": s.time,
+            })).collect::<Vec<_>>(),
+            "guests": self.guests.iter().map(|g| json!({ "id": g.id, "name": g.name, "model": g.model })).collect::<Vec<_>>(),
+        })
+    }
+}

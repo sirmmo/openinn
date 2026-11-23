@@ -1,0 +1,277 @@
+# The Gilded Mimic: an inn on the third level of the dungeon, for adventurers on their way down.
+# By day you dig and furnish; by night the doors are open and the guests come down the stairs.
+# The economy (brewing, cooking, buying supplies, scrubbing) is in economy.gbx.
+
+inn dungeon
+    name The Gilded Mimic
+    grid 12 9
+    entrance 6 0 hall           # the stairs from the level above
+    money Gold
+    reputation Reputation 3     # a delighted guest adds 3, a furious one takes 3 away
+    start Gold 320
+    start Reputation 5
+    start Ale 10                # the stores are stocked for the first night
+    start Provisions 8
+    nights 7                    # a season
+    guests 14                   # at most this many at once
+end
+
+# ---------- phases ----------
+
+phase day
+    name Day: dig and furnish
+    build
+    set Night 0
+end
+
+phase night
+    name Night: the doors are open
+    length 180
+    open
+    night
+    set Night 1
+    arrive 0.06 per Reputation 0.003   # more guests as word gets round
+end
+
+# ---------- layers (GlassBox maps on the dug cells) ----------
+
+layer Noise
+    decay 0.25
+    diffuse 0.15
+    max 30
+end
+
+layer Heat
+    decay 0.1
+    diffuse 0.2
+    max 20
+end
+
+layer Dirt
+    decay 0.002
+    diffuse 0.02
+    max 50
+end
+
+# ---------- rooms (cost per cell dug) ----------
+
+room hall
+    name Hall
+    cost 6
+    colour 8d8a99
+    floor floor_tile_large
+end
+
+room taproom
+    name Taproom
+    cost 10
+    colour b5734a
+    floor floor_wood_large
+end
+
+room kitchen
+    name Kitchen
+    cost 12
+    colour c9a227
+    floor floor_tile_small
+end
+
+room cellar
+    name Cellar
+    cost 8
+    colour 6b5040
+    floor floor_dirt_large
+end
+
+room dorm
+    name Dormitory
+    cost 10
+    colour 5d7fa3
+    floor floor_wood_large_dark
+end
+
+# ---------- needs ----------
+
+need Thirst
+    name Thirst
+    urgent 50
+end
+
+need Hunger
+    name Hunger
+    urgent 55
+end
+
+need Rest
+    name Rest
+    urgent 60
+end
+
+# ---------- furniture and stations ----------
+
+unit bar
+    name Bar counter
+    in taproom
+    cost 50
+    seats 3
+    model bar_straight_A
+end
+
+unit table
+    name Table
+    in taproom
+    cost 20
+    seats 2
+    model table_medium_decorated_A
+end
+
+unit hearth
+    name Hearth
+    in kitchen
+    cost 60
+    seats 0
+    model table_long_decorated_C
+end
+
+unit larder
+    name Larder
+    in kitchen cellar
+    cost 30
+    seats 0
+    model shelves_decorated
+end
+
+unit kegs
+    name Keg rack
+    in cellar
+    cost 40
+    seats 0
+    model keg_decorated
+end
+
+unit washtub
+    name Washtub
+    in kitchen hall
+    cost 25
+    seats 0
+    model barrel_large
+end
+
+unit bunk
+    name Bunk bed
+    in dorm
+    cost 30
+    seats 2
+    model bed_A_stacked
+end
+
+unit bed
+    name Feather bed
+    in dorm
+    cost 45
+    seats 1
+    model bed_decorated
+end
+
+# ---------- services ----------
+
+service ale
+    name A mug of ale
+    at bar
+    need Thirst 60
+    global Ale in 1
+    price 3
+    time 4
+    map Noise out 3 radius 1
+end
+
+service stew
+    name A bowl of stew
+    at table
+    need Hunger 70
+    global Stew in 1
+    price 5
+    time 8
+    map Noise out 1
+end
+
+service bunk
+    name A bunk for the night
+    at bunk
+    need Rest 90
+    price 6
+    time 50
+end
+
+service bed
+    name A feather bed
+    at bed
+    need Rest 100
+    price 10
+    time 40
+end
+
+# ---------- guests ----------
+
+guest adventurer
+    name Adventurer
+    weight 6
+    purse 20 45
+    stay 90 160
+    patience 25
+    need Thirst 0.9 45
+    need Hunger 0.6 30
+    need Rest 0.5 20
+    dislike map Noise greater 10 0.004
+    dislike map Dirt greater 12 0.004
+    map Noise out 0.4
+    map Dirt out 0.05
+    model character-knight
+end
+
+guest dwarf
+    name Dwarf miner
+    weight 3
+    if global Reputation atLeast 10
+    purse 30 70
+    stay 100 170
+    patience 35
+    need Thirst 1.4 60
+    need Hunger 0.5 20
+    need Rest 0.4 10
+    dislike map Dirt greater 20 0.004
+    map Noise out 0.8
+    map Dirt out 0.05
+    model character-worker
+end
+
+guest wizard
+    name Wizard
+    weight 2
+    if global Reputation atLeast 25
+    purse 50 110
+    stay 80 140
+    patience 20
+    need Thirst 0.3 10
+    need Hunger 0.5 40
+    need Rest 0.9 50
+    dislike map Noise greater 4 0.01
+    dislike map Dirt greater 6 0.006
+    dislike map Heat less 1 0.003
+    map Noise out 0.1
+    model character-female-c
+end
+
+guest goblin
+    name Goblin peddler
+    weight 2
+    purse 5 15
+    stay 60 120
+    patience 40
+    need Thirst 0.8 30
+    need Hunger 0.9 50
+    need Rest 0.2 0
+    map Noise out 0.6
+    map Dirt out 0.3
+    model character-zombie
+end

@@ -1,0 +1,48 @@
+# The Gilded Mimic's economy, in plain GlassBox. The units are declared in inn.inn.
+# Ale, Stew and Provisions are global: the inn's stores, kept in its account with Gold.
+# Night is set by the phases (1 while the doors are open).
+
+# The keg rack taps a barrel when the bar runs low; every mug costs the inn a little gold.
+unitRule tap
+    appliesTo kegs
+    rate 2
+    global Night atLeast 1
+    global Ale less 12
+    global Gold in 0.6
+    global Ale out 1
+end
+
+# The larder buys provisions from the traders upstairs, a few at a time.
+unitRule restock
+    appliesTo larder
+    rate 4
+    global Provisions less 8
+    global Gold in 1.5
+    global Provisions out 3
+end
+
+# The hearth turns provisions into stew while the doors are open, and warms the rooms nearby.
+unitRule cook
+    appliesTo hearth
+    rate 3
+    global Night atLeast 1
+    global Stew less 10
+    global Provisions in 1
+    global Stew out 2
+    map Heat out 4 radius 2
+    map Noise out 0.5
+end
+
+# A hearth keeps some warmth even when it is not cooking.
+unitRule embers
+    appliesTo hearth
+    map Heat out 1 radius 1
+end
+
+# The washtub's scullion scrubs the floors around it, for a small wage.
+unitRule scrub
+    appliesTo washtub
+    global Night atLeast 1
+    global Gold in 0.05
+    map Dirt in 3 radius 2
+end

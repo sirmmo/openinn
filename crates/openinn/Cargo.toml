@@ -1,0 +1,15 @@
+[package]
+name = "openinn"
+description = "An inn-keeping engine whose rules are GlassBox scripts: rooms, furniture, guests and their needs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+glassbox = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+serde_json = "1"
