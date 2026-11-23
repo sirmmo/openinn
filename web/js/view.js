@@ -248,10 +248,18 @@ export class View {
 
   syncGuests(view) {
     const seen = new Set();
+    // Guests sharing a cell stand evenly around it.
+    const slots = new Map();
+    const count = new Map();
+    for (const g of view.guests) {
+      const k = `${g.x},${g.y}`;
+      slots.set(g.id, count.get(k) || 0);
+      count.set(k, (count.get(k) || 0) + 1);
+    }
     for (const g of view.guests) {
       seen.add(g.id);
       let v = this.guests.get(g.id);
-      const spot = this.guestSpot(g, view);
+      const spot = this.guestSpot(g, slots.get(g.id), count.get(`${g.x},${g.y}`));
       if (!v) {
         v = this.makeGuest(g);
         if (!v) continue;
@@ -313,10 +321,10 @@ export class View {
 
   // Where a guest stands: spread around the cell so several do not overlap; next to the unit
   // when being served.
-  guestSpot(g, view) {
+  guestSpot(g, slot, of) {
     const p = cellCenter(g.x, g.y);
-    const a = ((g.id * 2654435761) % 997) / 997 * TAU;
-    const r = g.busy ? 1.3 : 1.1;
+    const a = (slot / of) * TAU + (g.x * 7 + g.y * 3) * 0.7;
+    const r = of > 1 || g.busy ? 1.25 : 0.5;
     p.x += Math.cos(a) * r;
     p.z += Math.sin(a) * r;
     return p;
@@ -340,7 +348,7 @@ export class View {
       if (v <= 0.01) continue;
       const m = new THREE.Mesh(
         new THREE.PlaneGeometry(CELL, CELL).rotateX(-Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: LAYER_COLOURS[this.layer] || 0xffffff, transparent: true, opacity: Math.min(0.75, 0.1 + v / max), depthWrite: false }),
+        new THREE.MeshBasicMaterial({ color: LAYER_COLOURS[this.layer] || 0xffffff, transparent: true, opacity: Math.min(0.7, 0.12 + (2.5 * v) / max), depthWrite: false }),
       );
       m.position.copy(cellCenter(c.x, c.y)).setY(0.2);
       m.renderOrder = 2;
@@ -392,7 +400,7 @@ export class View {
   // ---------- camera ----------
 
   // Looks at the dug part of the inn, from far enough to see all of it.
-  frame(cells) {
+  focus(cells) {
     if (!cells.length) return;
     let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
     for (const c of cells) {

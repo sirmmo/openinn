@@ -41,7 +41,7 @@ async function boot() {
   await view.load(catalog, (k) => { $('loadbar').style.width = `${Math.round(k * 100)}%`; });
   setupHud();
   apply(res, false);
-  view.frame(state.cells);
+  view.focus(state.cells);
   $('loading').hidden = true;
   $('hud').hidden = false;
   // For the console and for tests: window.openinn.send({ do: 'dig', x: 6, y: 1, room: 'hall' }).
