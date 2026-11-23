@@ -17,6 +17,11 @@ at the edge of a mining belt, where the air goes stale (a CO2 layer that scrubbe
 courier robots need a charging post. Each ruleset also says how it looks (a `look` block: models,
 colours, words) and can bring its own help text and stylesheet.
 
+Both play as a seven-night **season** or in **endless** mode, where the inn keeps opening night
+after night on a larger grid. Inns have **levels** joined by stairs, and **inner walls and doors**
+that guests walk round and that stop noise, heat or stale air from spreading. Buildings import
+from and export to the JSON format of watabou's [Dwellings](https://watabou.github.io/dwellings/).
+
 **Play:** [The Gilded Mimic](https://ingmmo.com/openinn/play/) ·
 [The Slow Orbit](https://ingmmo.com/openinn/play/?game=slow-orbit) ·
 **Documentation:** https://ingmmo.com/openinn/
@@ -64,8 +69,9 @@ sends a command.
 | Path | What |
 | --- | --- |
 | `crates/openinn/src/script.rs` | OpenInn's blocks, compiled next to GlassBox's |
-| `crates/openinn/src/sim.rs` | The game: cells, units, guests, phases, commands, snapshots |
-| `crates/openinn/tests/` | Tests and the bot innkeeper they share with the example |
+| `crates/openinn/src/sim.rs` | The game: cells and levels, walls, units, guests, phases, commands, snapshots |
+| `crates/openinn/src/dwellings.rs` | Export to and import from watabou's Dwellings JSON |
+| `crates/openinn/tests/` | Tests and the bot innkeeper they share with the example; `dwellings/` holds two houses exported from the Dwellings app |
 | `games/dungeon-inn/` | The Gilded Mimic: `inn.inn` (declarations and look), `economy.gbx` (GlassBox rules), `help.html`, `bot.plan` (the test bot's build order) |
 | `games/slow-orbit/` | The Slow Orbit, the same way, plus `style.css` |
 | `crates/openinn-web/` | The engine as WebAssembly: `start`, `apply`, `view`, `save` messages |

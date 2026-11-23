@@ -15,6 +15,10 @@ inn ring
     start Rations 8
     nights 7                    # a season
     guests 14                   # at most this many aboard at once
+    levels 2 up                 # a season: this deck and one above, by stairwells
+    endless 18 14 5 30          # endless mode: a wider ring, five decks, up to 30 guests
+    wall 4                      # a bulkhead between two built cells
+    door 8                      # a hatch in one
 end
 
 # ---------- phases ----------
@@ -58,6 +62,7 @@ room airlock
     cost 6
     colour 8a93a8
     floor floor-detail
+    dwellings hall corridor stairhall gallery secret-passage lookout           # Dwellings rooms imported as this
 end
 
 room lounge
@@ -65,6 +70,7 @@ room lounge
     cost 10
     colour f29b38
     floor floor-panel
+    dwellings living-room room chapel library study trophy-room observatory greenhouse studio *
 end
 
 room galley
@@ -72,6 +78,7 @@ room galley
     cost 12
     colour e4cf4a
     floor floor-panel-straight
+    dwellings kitchen workshop laboratory
 end
 
 room hold
@@ -79,6 +86,7 @@ room hold
     cost 8
     colour 6b7590
     floor floor
+    dwellings cellar storage vault armoury attic bathroom
 end
 
 room cabins
@@ -86,6 +94,7 @@ room cabins
     cost 10
     colour 5d86e0
     floor floor-panel
+    dwellings bedroom
 end
 
 # ---------- needs ----------
@@ -167,6 +176,15 @@ unit charger
     cost 35
     seats 2
     model computer
+end
+
+unit stairwell
+    name Stairwell
+    in airlock lounge
+    cost 40
+    seats 0
+    stairs                      # joins this cell to the deck above
+    model stairs:0:0.1 stairs-handrail:0:0.1
 end
 
 unit pod
@@ -316,6 +334,9 @@ look station
     furniture 3
     floor-y -1.17                        # the floor plates are thick: sink them to the deck
     wall wall
+    inner 0.55                           # bulkheads and hatches, at this part of a wall's height
+    door wall-door
+    level 6                              # how far apart the decks are drawn
     window wall-window 3                 # a window on some of the back walls
     entrance wall-door-wide 1 0          # the airlock door
     background 080b17
@@ -327,6 +348,9 @@ look station
     loading Pressurising the airlock
     arrive comes aboard through the airlock
     seeds orbit comet nebula airlock quasar rivet ion drift beacon hull tessel
+    levelname Deck
+    wallname Bulkhead
+    doorname Hatch
     help help.html
     style style.css
 end

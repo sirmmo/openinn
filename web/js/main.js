@@ -7,7 +7,10 @@ import { View, cellCenter } from './view.js';
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const GAME = params.get('game') || 'dungeon-inn';
-const SAVE_KEY = `openinn:${GAME}`;
+// A season (the ruleset's nights) or endless (no last night, more room, more levels); each
+// keeps its own save.
+const MODE = params.get('mode') === 'endless' ? 'endless' : 'season';
+const SAVE_KEY = MODE === 'endless' ? `openinn:${GAME}:endless` : `openinn:${GAME}`;
 const TICK_MS = 250; // a tick at normal speed
 
 let engine, files, catalog, view, state;
@@ -35,10 +38,10 @@ async function boot() {
   look = first.catalog.look || {};
   const seed = params.get('seed') || saved?.seed || newSeed();
   const commands = !params.get('seed') || params.get('seed') === saved?.seed ? saved?.commands : null;
-  let res = engine.start(files, seed, commands);
+  let res = engine.start(files, seed, commands, MODE);
   if (res.error && commands) {
     console.warn('the save does not replay:', res.error);
-    res = engine.start(files, seed);
+    res = engine.start(files, seed, null, MODE);
   }
   if (res.error) {
     $('loadsub').textContent = res.error;
@@ -56,7 +59,8 @@ async function boot() {
   $('loading').hidden = true;
   $('hud').hidden = false;
   // For the console and for tests: window.openinn.send({ do: 'dig', x: 6, y: 1, room: 'hall' }).
-  window.openinn = { send, state: () => state, view, setSpeed, catalog };
+  window.openinn = { send, state: () => state, view, setSpeed, setLevel, catalog, engine, restart };
+  setLevel(0);
   if (!localStorage.getItem(`openinn:seen-help:${GAME}`)) {
     $('help').hidden = false;
     localStorage.setItem(`openinn:seen-help:${GAME}`, '1');
@@ -85,13 +89,18 @@ function newSeed() {
   return `${w[Math.floor(Math.random() * w.length)]}-${Math.floor(Math.random() * 9000 + 1000)}`;
 }
 
-function restart(seed = newSeed()) {
+// A new game; `commands` may start it (an imported plan).
+function restart(seed = newSeed(), commands = null) {
   stopNight();
   localStorage.removeItem(SAVE_KEY);
   const u = new URL(location.href);
   u.searchParams.delete('seed');
   history.replaceState(null, '', u);
-  const res = engine.start(files, seed);
+  const res = engine.start(files, seed, commands, MODE);
+  if (res.error) {
+    toast(res.error);
+    return false;
+  }
   names.clear();
   selected = null;
   $('log').innerHTML = '';
@@ -102,7 +111,12 @@ function restart(seed = newSeed()) {
   view.cells.clear();
   for (const u2 of view.units.values()) view.scene.remove(u2.obj);
   view.units.clear();
-  apply(res, false);
+  for (const w of view.walls.values()) view.scene.remove(w.obj);
+  view.walls.clear();
+  setLevel(0);
+  apply(res, !!commands);
+  view.focus(state.cells);
+  return true;
 }
 
 // ---------- commands ----------
@@ -178,6 +192,21 @@ function setupHud() {
     units.appendChild(b);
   }
   $('removeTool').onclick = () => setTool(tool?.kind === 'remove' ? null : { kind: 'remove' }, $('removeTool'));
+  const walls = $('wallButtons');
+  const wallTool = (name, cost, t) => {
+    const b = toolButton(name, cost, '');
+    if (cost === '') b.querySelector('.c').textContent = 'half back';
+    else b.dataset.cost = cost;
+    b.onclick = () => setTool(tool?.kind === t.kind ? null : t, b);
+    walls.appendChild(b);
+  };
+  wallTool(look.wallname || 'Wall', catalog.inn.wall, { kind: 'wall', door: false });
+  wallTool(look.doorname || 'Door', catalog.inn.door, { kind: 'door', door: true });
+  wallTool('Take down', '', { kind: 'unwall' });
+
+  // Levels.
+  $('levelUp').onclick = () => setLevel(view.level - 1);
+  $('levelDown').onclick = () => setLevel(view.level + 1);
   $('openDoors').onclick = () => {
     setTool(null);
     if (send({ do: 'next' })) setSpeed(speed || 1);
@@ -206,6 +235,32 @@ function setupHud() {
     $('menu').hidden = true;
     if (confirm('Close this inn and start a new one?')) restart();
   };
+  const other = new URL(location.href);
+  other.searchParams.delete('seed');
+  if (MODE === 'endless') other.searchParams.delete('mode');
+  else other.searchParams.set('mode', 'endless');
+  $('mMode').href = other.href;
+  $('mMode').textContent = MODE === 'endless' ? 'Play a season instead' : 'Play endless (keep building, more levels)';
+  $('mExport').onclick = () => {
+    $('menu').hidden = true;
+    const r = engine.call({ op: 'export' });
+    if (r.error) return toast(r.error);
+    download(JSON.stringify(r.dwellings, null, 2), `${catalog.inn.name}.json`);
+    toast('Exported in the format of watabou\'s Dwellings');
+  };
+  $('mImport').onclick = () => { $('menu').hidden = true; $('importFile').click(); };
+  $('importFile').onchange = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    let doc;
+    try { doc = JSON.parse(await file.text()); } catch { return toast('That file is not JSON'); }
+    const r = engine.call({ op: 'import', dwellings: doc, mode: MODE });
+    if (r.error) return toast(r.error);
+    const note = r.warnings.length ? `\n\n${r.warnings.join('\n')}` : '';
+    if (!confirm(`Start a new inn in this building?${note}`)) return;
+    if (restart(newSeed(), [r.plan])) toast(`Built ${r.plan.cells.length} cells from ${file.name}`);
+  };
   $('mLink').onclick = async () => {
     $('menu').hidden = true;
     const u = new URL(location.href);
@@ -214,16 +269,38 @@ function setupHud() {
   };
   $('mSave').onclick = () => {
     $('menu').hidden = true;
-    const blob = new Blob([JSON.stringify({ game: GAME, ...engine.save() })], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `openinn-${GAME}-${engine.save().seed}.json`;
-    a.click();
+    download(JSON.stringify({ game: GAME, ...engine.save() }), `openinn-${GAME}-${engine.save().seed}.json`);
   };
   $('overNew').onclick = () => restart();
   $('overLook').onclick = () => { $('over').hidden = true; };
 
   setupInput();
+}
+
+function download(text, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = name.replace(/[^\w.-]+/g, '-').toLowerCase();
+  a.click();
+}
+
+// Which level is shown (and built on).
+function setLevel(z) {
+  const levels = state?.grid[2] ?? 1;
+  z = Math.max(0, Math.min(levels - 1, z));
+  view.setLevel(z);
+  const name = look.levelname || 'Level';
+  $('levelLabel').textContent = `${name} ${z + 1}/${levels}`;
+  $('levelUp').disabled = z === 0;
+  $('levelDown').disabled = z >= levels - 1;
+  // In an inn that grows up, the next level is above: the arrows say so.
+  const down = catalog.inn.down;
+  $('levelUp').textContent = down ? '▲' : '▼';
+  $('levelDown').textContent = down ? '▼' : '▲';
+  $('levelUp').title = down ? 'The level above' : 'The level below';
+  $('levelDown').title = down ? 'The level below' : 'The level above';
+  showHints();
+  renderGuests();
 }
 
 function toolButton(name, cost, extra) {
@@ -239,24 +316,45 @@ function setTool(t, button) {
   showHints();
 }
 
+const WALL_TOOLS = new Set(['wall', 'door', 'unwall']);
+
 function showHints() {
   if (!state || !tool || !state.build) return view.showHints([]);
-  const dug = new Map(state.cells.map((c) => [`${c.x},${c.y}`, c]));
-  const used = new Set(state.units.map((u) => `${u.x},${u.y}`));
-  const { width, height } = catalog.inn;
+  const z = view.level;
+  const dug = new Map(state.cells.map((c) => [`${c.x},${c.y},${c.z}`, c]));
+  const used = new Set(state.units.map((u) => `${u.x},${u.y},${u.z}`));
+  const stairsKinds = new Set(catalog.units.filter((u) => u.stairs).map((u) => u.id));
+  const below = new Set(state.units.filter((u) => stairsKinds.has(u.unit)).map((u) => `${u.x},${u.y},${u.z + 1}`));
+  const [width, height] = state.grid;
   const out = [];
+  if (WALL_TOOLS.has(tool.kind)) {
+    const walls = new Map(state.walls.map((w) => [`${w.x},${w.y},${w.z},${w.side}`, w]));
+    const edges = [];
+    for (const c of state.cells) {
+      if (c.z !== z) continue;
+      for (const [side, dx, dy] of [['e', 1, 0], ['s', 0, 1]]) {
+        if (!dug.has(`${c.x + dx},${c.y + dy},${z}`)) continue;
+        const w = walls.get(`${c.x},${c.y},${z},${side}`);
+        const ok = tool.kind === 'unwall' ? !!w : !w || w.door !== tool.door;
+        if (ok) edges.push([c.x, c.y, side]);
+      }
+    }
+    return view.showEdgeHints(edges, tool.kind === 'unwall' ? 0xff8a65 : 0xfff3b0);
+  }
   if (tool.kind === 'dig') {
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-      if (dug.has(`${x},${y}`)) continue;
-      if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => dug.has(`${x + dx},${y + dy}`))) out.push([x, y]);
+      if (dug.has(`${x},${y},${z}`)) continue;
+      if (below.has(`${x},${y},${z}`) || [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => dug.has(`${x + dx},${y + dy},${z}`))) out.push([x, y]);
     }
   } else if (tool.kind === 'build') {
     const u = catalog.units.find((k) => k.id === tool.unit);
     for (const c of state.cells) {
-      if (!used.has(`${c.x},${c.y}`) && (!u.rooms.length || u.rooms.includes(c.room))) out.push([c.x, c.y]);
+      if (c.z !== z || used.has(`${c.x},${c.y},${c.z}`)) continue;
+      if (u.stairs && z + 1 >= state.grid[2]) continue;
+      if (!u.rooms.length || u.rooms.includes(c.room)) out.push([c.x, c.y]);
     }
   } else {
-    for (const u of state.units) out.push([u.x, u.y]);
+    for (const u of state.units) if (u.z === z) out.push([u.x, u.y]);
   }
   view.showHints(out, tool.kind === 'remove' ? 0xff8a65 : 0xfff3b0);
 }
@@ -267,7 +365,8 @@ function global(id) {
 
 function render(before) {
   const ph = catalog.phases.find((p) => p.id === state.phase);
-  $('dayLabel').textContent = `Day ${state.day}`;
+  $('dayLabel').textContent = MODE === 'endless' ? `Day ${state.day} ∞` : `Day ${state.day}`;
+  $('levels').hidden = state.grid[2] <= 1;
   $('phaseLabel').textContent = ph?.name || state.phase;
   const gold = global(catalog.inn.money);
   $('gold').textContent = Math.floor(gold);
@@ -310,7 +409,8 @@ function renderGuests() {
   for (const g of state.guests) {
     const d = document.createElement('div');
     d.className = 'gl' + (g.id === selected ? ' sel' : '');
-    d.innerHTML = `<b>${guestName(g.kind)}</b><span class="mood">${stars(g.mood)}</span><span class="doing">${doing(g)}</span>`;
+    const where = state.grid[2] > 1 ? ` · ${look.levelname || 'Level'} ${g.z + 1}` : '';
+    d.innerHTML = `<b>${guestName(g.kind)}</b><span class="mood">${stars(g.mood)}</span><span class="doing">${doing(g)}${where}</span>`;
     d.onclick = () => select(g.id);
     list.appendChild(d);
   }
@@ -319,6 +419,9 @@ function renderGuests() {
 
 function select(id) {
   selected = selected === id ? null : id;
+  // Show the level the guest is on.
+  const g = state.guests.find((x) => x.id === selected);
+  if (g && g.z !== view.level) setLevel(g.z);
   renderGuests();
 }
 
@@ -360,7 +463,7 @@ function logEvent(e) {
     case 'serve': {
       const s = catalog.services.find((x) => x.id === e.service);
       text = `${guestName(names.get(e.guest))}: ${s?.name.toLowerCase() || e.service}, ${e.price} ${money()}.`;
-      floater(`+${e.price}`, e.x, e.y);
+      if ((e.z ?? 0) === view.level) floater(`+${e.price}`, e.x, e.y, e.z);
       break;
     }
     case 'leave':
@@ -392,8 +495,8 @@ function a(name) {
   return /^[AEIOU]/.test(name) ? `An ${name}` : `A ${name}`;
 }
 
-function floater(text, x, y) {
-  const p = cellCenter(x, y).setY(3).project(view.camera);
+function floater(text, x, y, z = 0) {
+  const p = cellCenter(x, y, z).add({ x: 0, y: 3, z: 0 }).project(view.camera);
   const r = $('scene').getBoundingClientRect();
   const d = document.createElement('div');
   d.className = 'floater';
@@ -441,7 +544,8 @@ function setupInput() {
   });
   canvas.addEventListener('pointermove', (e) => {
     if (!pointers.has(e.pointerId)) {
-      view.setHover(tool && state?.build ? view.pickCell(e.clientX, e.clientY) : null);
+      if (tool && state?.build && WALL_TOOLS.has(tool.kind)) view.setHoverEdge(view.pickEdge(e.clientX, e.clientY));
+      else view.setHover(tool && state?.build ? view.pickCell(e.clientX, e.clientY) : null);
       return;
     }
     const prev = pointers.get(e.pointerId);
@@ -479,6 +583,8 @@ function setupInput() {
     if (e.target.tagName === 'INPUT') return;
     if (e.key === ' ' && !state.build) { e.preventDefault(); setSpeed(speed ? 0 : 1); }
     if (e.key === 'Escape') { setTool(null); $('menu').hidden = true; $('help').hidden = true; }
+    if (e.key === 'PageUp' || e.key === '[') setLevel(view.level - 1);
+    if (e.key === 'PageDown' || e.key === ']') setLevel(view.level + 1);
     if (e.key === 'q') view.turn(0.15);
     if (e.key === 'e') view.turn(-0.15);
   });
@@ -490,12 +596,22 @@ function click(x, y) {
     if (g !== null) select(g);
     return;
   }
+  if (!tool) return;
+  const z = view.level;
+  if (WALL_TOOLS.has(tool.kind)) {
+    const edge = view.pickEdge(x, y);
+    if (!edge) return;
+    const [ex, ey, side] = edge;
+    if (tool.kind === 'unwall') send({ do: 'unwall', x: ex, y: ey, z, side });
+    else send({ do: 'wall', x: ex, y: ey, z, side, door: tool.door });
+    return;
+  }
   const cell = view.pickCell(x, y);
-  if (!cell || !tool) return;
+  if (!cell) return;
   const [cx, cy] = cell;
-  if (tool.kind === 'dig') send({ do: 'dig', x: cx, y: cy, room: tool.room });
-  else if (tool.kind === 'build') send({ do: 'build', x: cx, y: cy, unit: tool.unit });
-  else send({ do: 'remove', x: cx, y: cy });
+  if (tool.kind === 'dig') send({ do: 'dig', x: cx, y: cy, z, room: tool.room });
+  else if (tool.kind === 'build') send({ do: 'build', x: cx, y: cy, z, unit: tool.unit });
+  else send({ do: 'remove', x: cx, y: cy, z });
 }
 
 boot().catch((e) => {

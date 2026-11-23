@@ -20,8 +20,8 @@ export class Engine {
     return JSON.parse(new TextDecoder().decode(new Uint8Array(w.memory.buffer, out, w.inn_out_len())));
   }
 
-  start(files, seed, commands = null) {
-    return this.call({ op: 'start', files, seed, commands });
+  start(files, seed, commands = null, mode = 'season') {
+    return this.call({ op: 'start', files, seed, commands, mode });
   }
 
   apply(command) {

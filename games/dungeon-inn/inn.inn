@@ -14,6 +14,10 @@ inn dungeon
     start Provisions 8
     nights 7                    # a season
     guests 14                   # at most this many at once
+    levels 2 down               # a season: this level and one below, by stairs
+    endless 18 14 5 30          # endless mode: a wider grid, five levels, up to 30 guests
+    wall 4                      # an inner wall between two dug cells
+    door 8                      # a door in one
 end
 
 # ---------- phases ----------
@@ -63,6 +67,7 @@ room hall
     cost 6
     colour 8d8a99
     floor floor_tile_large
+    dwellings hall corridor stairhall gallery secret-passage lookout           # Dwellings rooms imported as this
 end
 
 room taproom
@@ -70,6 +75,7 @@ room taproom
     cost 10
     colour b5734a
     floor floor_wood_large
+    dwellings living-room room chapel library study trophy-room observatory greenhouse studio *
 end
 
 room kitchen
@@ -77,6 +83,7 @@ room kitchen
     cost 12
     colour c9a227
     floor floor_tile_small:0:0:0:2   # small tiles, twice the size
+    dwellings kitchen workshop laboratory
 end
 
 room cellar
@@ -84,6 +91,7 @@ room cellar
     cost 8
     colour 6b5040
     floor floor_dirt_large
+    dwellings cellar storage vault armoury attic bathroom
 end
 
 room dorm
@@ -91,6 +99,7 @@ room dorm
     cost 10
     colour 5d7fa3
     floor floor_wood_large_dark
+    dwellings bedroom
 end
 
 # ---------- needs ----------
@@ -158,6 +167,15 @@ unit washtub
     cost 25
     seats 0
     model barrel_large
+end
+
+unit stairs
+    name Stairs down
+    in hall cellar
+    cost 40
+    seats 0
+    stairs                      # joins this cell to the one below
+    model stairs:0:-0.5:0:0.8
 end
 
 unit bunk
@@ -285,6 +303,9 @@ look dungeon
     models kaykit gltf                   # web/models/kaykit/<name>.gltf: KayKit Dungeon Pack
     characters guests glb                # web/models/guests/<name>.glb: Kenney Mini Characters
     wall wall
+    inner 0.55                           # inner walls and doors, at this part of a wall's height
+    door wall_doorway
+    level 7                              # how far apart the levels are drawn
     decor torch_mounted 3 0.8 2.6 0.5    # a torch on every third north wall
     entrance stairs 0.8 180              # the stairs down from the level above
     background 17131f
@@ -295,5 +316,6 @@ look dungeon
     loading Lighting the torches
     arrive comes down the stairs
     seeds mimic kobold lantern barrel goblet torch cellar dragon tankard rune
+    levelname Level
     help help.html
 end

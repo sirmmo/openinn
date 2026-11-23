@@ -33,6 +33,8 @@
       <div class="grid" id="digButtons"></div>
       <h3>Furnish</h3>
       <div class="grid" id="unitButtons"></div>
+      <h3>Walls</h3>
+      <div class="grid" id="wallButtons"></div>
       <button class="tool wide" id="removeTool" data-tool="remove">Remove (half back)</button>
       <button class="primary" id="openDoors">Open the doors</button>
     </div>
@@ -54,12 +56,21 @@
     <button data-layer="" class="on">Rooms</button>
   </div>
 
+  <div id="levels" class="card" hidden>
+    <button id="levelUp">▲</button>
+    <span id="levelLabel">Level 1</span>
+    <button id="levelDown">▼</button>
+  </div>
+
   <div id="topright">
     <button class="icon" id="bHelp" title="How to play" aria-label="How to play">?</button>
     <button class="icon" id="bMenu" title="Menu" aria-label="Menu">☰</button>
   </div>
   <div id="menu" class="card" hidden>
     <button id="mNew">Start a new inn</button>
+    <a id="mMode" class="menuitem" href="?mode=endless">Play endless</a>
+    <button id="mImport">Build from a Dwellings house…</button>
+    <button id="mExport">Export to Dwellings (JSON)</button>
     <button id="mLink">Copy a link to this inn's seed</button>
     <button id="mSave">Download the save</button>
   </div>
@@ -69,6 +80,8 @@
   <div id="floaters"></div>
   <div id="toast" hidden></div>
 </div>
+
+<input type="file" id="importFile" accept=".json,application/json" hidden>
 
 <div id="help" class="modal" hidden>
   <div class="card">

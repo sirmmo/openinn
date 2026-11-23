@@ -55,6 +55,7 @@ fn digging_and_building_follow_the_rules() {
     let dig = |x, y, room: &str| Command::Dig {
         x,
         y,
+        z: 0,
         room: room.into(),
     };
     assert!(g
@@ -71,6 +72,7 @@ fn digging_and_building_follow_the_rules() {
         .apply(Command::Build {
             x: 6,
             y: 1,
+            z: 0,
             unit: "bunk".into(),
         })
         .unwrap_err();
@@ -78,12 +80,13 @@ fn digging_and_building_follow_the_rules() {
     g.apply(Command::Build {
         x: 6,
         y: 1,
+        z: 0,
         unit: "bar".into(),
     })
     .unwrap();
     assert_eq!(global(&g, "Gold"), gold - 60.0);
     // Selling gives half back.
-    g.apply(Command::Remove { x: 6, y: 1 }).unwrap();
+    g.apply(Command::Remove { x: 6, y: 1, z: 0 }).unwrap();
     assert_eq!(global(&g, "Gold"), gold - 35.0);
     // The day waits for the player; the night runs by itself and allows no digging.
     assert!(g.apply(Command::Tick { n: 1 }).is_err());

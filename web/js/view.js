@@ -47,12 +47,24 @@ function readLook(raw = {}) {
     edge: hex(w('edge')[0], 0x6b5c80),
     light: [hex(sky, 0xffe6c7), hex(low, 0x2a2238)],
     stars: num(w('stars')[0], 0),
+    inner: num(w('inner')[0], 0.55),
+    door: w('door')[0],
+    level: num(w('level')[0], 7),
   };
 }
 
-export function cellCenter(x, y) {
-  return new THREE.Vector3(x * CELL + CELL / 2, 0, y * CELL + CELL / 2);
+// How far apart levels are drawn, and which way they go (set from the ruleset by View.load).
+let levelStep = 0;
+
+export function levelY(z = 0) {
+  return z * levelStep;
 }
+
+export function cellCenter(x, y, z = 0) {
+  return new THREE.Vector3(x * CELL + CELL / 2, levelY(z), y * CELL + CELL / 2);
+}
+
+const SIDES = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
 
 export class View {
   constructor(canvas) {
@@ -79,8 +91,11 @@ export class View {
 
     this.templates = {};
     this.clips = {};
-    this.cells = new Map(); // "x,y" -> { group, room }
-    this.units = new Map(); // "x,y" -> { obj, unit }
+    this.cells = new Map(); // "x,y,z" -> { group, room, walls }
+    this.units = new Map(); // "x,y,z" -> { obj, unit }
+    this.walls = new Map(); // "x,y,z,side" -> { obj, door }
+    this.landings = new Map(); // "x,y,z" -> where stairs from the level before come out
+    this.level = 0; // the level shown
     this.guests = new Map(); // id -> { obj, mixer, actions, from, to, ... }
     this.overlay = new Map();
     this.layer = null;
@@ -116,7 +131,9 @@ export class View {
     this.hemi.color.set(look.light[0]);
     this.hemi.groundColor.set(look.light[1]);
     const loader = new GLTFLoader();
-    const names = new Set([look.wall, look.window?.name, look.decor?.name, look.entrance?.name].filter(Boolean));
+    levelStep = look.level * (inn.down ? -1 : 1);
+    this.grid = [inn.width, inn.height, inn.levels];
+    const names = new Set([look.wall, look.window?.name, look.decor?.name, look.entrance?.name, look.door].filter(Boolean));
     for (const r of catalog.rooms) for (const p of parts(r.floor)) names.add(p.name);
     for (const u of catalog.units) for (const p of parts(u.model)) names.add(p.name);
     const guests = new Set(catalog.guests.map((g) => g.model).filter(Boolean));
@@ -142,29 +159,10 @@ export class View {
       onProgress?.(++done / jobs.length);
     }));
 
-    // The ground all around the diggable grid (rock, or nothing), and a faint grid over it.
-    const w = inn.width * CELL;
-    const h = inn.height * CELL;
-    if (look.ground !== null) {
-      const rock = new THREE.Mesh(
-        new THREE.PlaneGeometry(w + 80, h + 80).rotateX(-Math.PI / 2),
-        new THREE.MeshStandardMaterial({ color: look.ground, roughness: 1 }),
-      );
-      rock.position.set(w / 2, -0.15, h / 2);
-      rock.receiveShadow = true;
-      this.scene.add(rock);
-    }
-    if (look.stars) this.scene.add(starfield(look.stars, w, h));
-    const grid = new THREE.GridHelper(Math.max(w, h), Math.max(inn.width, inn.height), look.grid[0], look.grid[1]);
-    grid.position.set(Math.max(w, h) / 2, -0.1, Math.max(w, h) / 2);
-    grid.scale.set(1, 1, 1);
-    this.scene.add(grid);
-    const edge = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(w, 0.01, h)),
-      new THREE.LineBasicMaterial({ color: look.edge }),
-    );
-    edge.position.set(w / 2, -0.08, h / 2);
-    this.scene.add(edge);
+    this.base = new THREE.Group(); // the ground and the grid, moved to the level shown
+    this.scene.add(this.base);
+    this.setGrid(this.grid);
+    if (look.stars) this.scene.add(starfield(look.stars, inn.width * CELL, inn.height * CELL));
 
     // The way in (stairs, a door), on the north edge of the entrance cell.
     const [ex, ey] = inn.entrance;
@@ -174,8 +172,52 @@ export class View {
       door.rotation.y = look.entrance.rot;
       door.position.copy(cellCenter(ex, ey)).add(new THREE.Vector3(0, 0, -CELL / 2));
       this.scene.add(door);
+      this.entranceObj = door;
     }
     this.cam.target.copy(cellCenter(ex, ey + 2));
+  }
+
+  // The ground all around the diggable grid (rock, or nothing), and a faint grid over it; the
+  // grid's size is the game's (the endless mode's is larger).
+  setGrid([gw, gh, levels]) {
+    const { look } = this;
+    this.grid = [gw, gh, levels];
+    this.base.clear();
+    const w = gw * CELL;
+    const h = gh * CELL;
+    if (look.ground !== null) {
+      const rock = new THREE.Mesh(
+        new THREE.PlaneGeometry(w + 80, h + 80).rotateX(-Math.PI / 2),
+        new THREE.MeshStandardMaterial({ color: look.ground, roughness: 1 }),
+      );
+      rock.position.set(w / 2, -0.15, h / 2);
+      rock.receiveShadow = true;
+      this.base.add(rock);
+    }
+    const grid = new THREE.GridHelper(Math.max(w, h), Math.max(gw, gh), look.grid[0], look.grid[1]);
+    grid.position.set(Math.max(w, h) / 2, -0.1, Math.max(w, h) / 2);
+    this.base.add(grid);
+    const edge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(w, 0.01, h)),
+      new THREE.LineBasicMaterial({ color: look.edge }),
+    );
+    edge.position.set(w / 2, -0.08, h / 2);
+    this.base.add(edge);
+  }
+
+  // Shows one level: the others are hidden, the ground and the camera move to it.
+  setLevel(z) {
+    this.level = z;
+    this.base.position.y = levelY(z);
+    if (this.entranceObj) this.entranceObj.visible = z === 0;
+    const on = (k) => +k.split(',')[2] === z;
+    for (const [k, c] of this.cells) c.group.visible = on(k);
+    for (const [k, u] of this.units) u.obj.visible = on(k);
+    for (const [k, w] of this.walls) w.obj.visible = on(k);
+    for (const [k, m] of this.landings) m.visible = on(k);
+    for (const v of this.guests.values()) v.obj.visible = v.data?.z === z;
+    this.cam.target.y = levelY(z);
+    this.drawOverlay();
   }
 
   model(name) {
@@ -208,29 +250,63 @@ export class View {
   // ---------- the inn ----------
 
   sync(view) {
-    const dug = new Set(view.cells.map((c) => `${c.x},${c.y}`));
+    if (view.grid.join() !== this.grid.join()) this.setGrid(view.grid);
+    const dug = new Set(view.cells.map((c) => `${c.x},${c.y},${c.z}`));
+    const seenCells = new Set();
     for (const c of view.cells) {
-      const k = `${c.x},${c.y}`;
-      const walls = this.wallMask(c.x, c.y, dug);
+      const k = `${c.x},${c.y},${c.z}`;
+      seenCells.add(k);
+      const walls = this.wallMask(c.x, c.y, c.z, dug);
       const cur = this.cells.get(k);
       if (cur && cur.room === c.room && cur.walls === walls) continue;
       if (cur) this.scene.remove(cur.group);
       const g = this.cellGroup(c, walls);
+      g.visible = c.z === this.level;
       this.scene.add(g);
       if (!cur) this.pop(g);
       this.cells.set(k, { group: g, room: c.room, walls });
     }
-    // Units.
+    for (const [k, v] of this.cells) {
+      if (!seenCells.has(k)) {
+        this.scene.remove(v.group);
+        this.cells.delete(k);
+      }
+    }
+    // Inner walls and doors.
+    const seenWalls = new Set();
+    for (const w of view.walls) {
+      const k = `${w.x},${w.y},${w.z},${w.side}`;
+      seenWalls.add(k);
+      const cur = this.walls.get(k);
+      if (cur && cur.door === w.door) continue;
+      if (cur) this.scene.remove(cur.obj);
+      const obj = this.innerWall(w);
+      obj.visible = w.z === this.level;
+      this.scene.add(obj);
+      this.pop(obj);
+      this.walls.set(k, { obj, door: w.door });
+    }
+    for (const [k, v] of this.walls) {
+      if (!seenWalls.has(k)) {
+        this.scene.remove(v.obj);
+        this.walls.delete(k);
+      }
+    }
+    // Units, and where stairs come out on the next level.
+    const stairs = new Set(this.catalog.units.filter((u) => u.stairs).map((u) => u.id));
     const seen = new Set();
+    const landings = new Set();
     for (const u of view.units) {
-      const k = `${u.x},${u.y}`;
+      const k = `${u.x},${u.y},${u.z}`;
       seen.add(k);
+      if (stairs.has(u.unit)) landings.add(`${u.x},${u.y},${u.z + 1}`);
       const cur = this.units.get(k);
       if (cur && cur.unit === u.unit) continue;
       if (cur) this.scene.remove(cur.obj);
       const obj = this.assemble(u.model, this.look.furniture) || new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: 0xaa8866 }));
-      obj.position.copy(cellCenter(u.x, u.y));
-      obj.rotation.y = this.facing(u.x, u.y, dug);
+      obj.position.copy(cellCenter(u.x, u.y, u.z));
+      obj.rotation.y = this.facing(u.x, u.y, u.z, dug);
+      obj.visible = u.z === this.level;
       this.scene.add(obj);
       this.pop(obj);
       this.units.set(k, { obj, unit: u.unit });
@@ -241,18 +317,49 @@ export class View {
         this.units.delete(k);
       }
     }
+    for (const k of landings) {
+      if (this.landings.has(k)) continue;
+      const [x, y, z] = k.split(',').map(Number);
+      const m = landingMark();
+      m.position.copy(cellCenter(x, y, z)).setY(levelY(z) + 0.12);
+      m.visible = z === this.level;
+      this.scene.add(m);
+      this.landings.set(k, m);
+    }
+    for (const [k, m] of this.landings) {
+      if (!landings.has(k)) {
+        this.scene.remove(m);
+        this.landings.delete(k);
+      }
+    }
     this.syncGuests(view);
     this.view = view;
     this.drawOverlay();
   }
 
-  // Bit d set when the neighbour in direction d (0 north, 1 east, 2 south, 3 west) is rock.
-  wallMask(x, y, dug) {
+  // Bit d set when the neighbour in direction d (0 north, 1 east, 2 south, 3 west) is undug.
+  wallMask(x, y, z, dug) {
     let m = 0;
     [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([dx, dy], d) => {
-      if (!dug.has(`${x + dx},${y + dy}`)) m |= 1 << d;
+      if (!dug.has(`${x + dx},${y + dy},${z}`)) m |= 1 << d;
     });
     return m;
+  }
+
+  // An inner wall or door, on the east or south side of its cell.
+  innerWall(w) {
+    const { look } = this;
+    const obj = new THREE.Group();
+    const m = this.model(w.door ? look.door || look.wall : look.wall);
+    if (m) {
+      m.scale.setScalar(look.scale);
+      m.scale.y = look.scale * look.inner;
+      obj.add(m);
+    }
+    const [dx, dy] = SIDES[w.side];
+    obj.position.copy(cellCenter(w.x, w.y, w.z)).add(new THREE.Vector3((dx * CELL) / 2, 0, (dy * CELL) / 2));
+    obj.rotation.y = dx ? Math.PI / 2 : 0;
+    return obj;
   }
 
   cellGroup(c, walls) {
@@ -271,7 +378,7 @@ export class View {
     tint.position.y = 0.07;
     g.add(tint);
     const { entrance } = this.catalog.inn;
-    const isEntrance = c.x === entrance[0] && c.y === entrance[1];
+    const isEntrance = c.x === entrance[0] && c.y === entrance[1] && c.z === 0;
     for (let d = 0; d < 4; d++) {
       if (!(walls & (1 << d))) continue;
       if (isEntrance && d === 0) continue; // the way in
@@ -294,14 +401,14 @@ export class View {
         }
       }
     }
-    g.position.copy(cellCenter(c.x, c.y));
+    g.position.copy(cellCenter(c.x, c.y, c.z));
     return g;
   }
 
   // Furniture turns its back to a wall when it has one.
-  facing(x, y, dug) {
+  facing(x, y, z, dug) {
     const order = [[0, -1, 0], [-1, 0, Math.PI / 2], [1, 0, -Math.PI / 2], [0, 1, Math.PI]];
-    for (const [dx, dy, ry] of order) if (!dug.has(`${x + dx},${y + dy}`)) return ry;
+    for (const [dx, dy, ry] of order) if (!dug.has(`${x + dx},${y + dy},${z}`)) return ry;
     return 0;
   }
 
@@ -319,14 +426,14 @@ export class View {
     const slots = new Map();
     const count = new Map();
     for (const g of view.guests) {
-      const k = `${g.x},${g.y}`;
+      const k = `${g.x},${g.y},${g.z}`;
       slots.set(g.id, count.get(k) || 0);
       count.set(k, (count.get(k) || 0) + 1);
     }
     for (const g of view.guests) {
       seen.add(g.id);
       let v = this.guests.get(g.id);
-      const spot = this.guestSpot(g, slots.get(g.id), count.get(`${g.x},${g.y}`));
+      const spot = this.guestSpot(g, slots.get(g.id), count.get(`${g.x},${g.y},${g.z}`));
       if (!v) {
         v = this.makeGuest(g);
         if (!v) continue;
@@ -336,7 +443,10 @@ export class View {
       } else {
         v.from = v.obj.position.clone();
       }
+      // Taking the stairs: no gliding between levels.
+      if (v.data && v.data.z !== g.z) v.from = spot.clone();
       v.to = spot;
+      v.obj.visible = g.z === this.level;
       v.busy = g.busy;
       v.mood = g.mood;
       v.data = g;
@@ -389,7 +499,7 @@ export class View {
   // Where a guest stands: spread around the cell so several do not overlap; next to the unit
   // when being served.
   guestSpot(g, slot, of) {
-    const p = cellCenter(g.x, g.y);
+    const p = cellCenter(g.x, g.y, g.z);
     const a = (slot / of) * TAU + (g.x * 7 + g.y * 3) * 0.7;
     const r = of > 1 || g.busy ? 1.25 : 0.5;
     p.x += Math.cos(a) * r;
@@ -413,16 +523,17 @@ export class View {
     const max = def?.max || 20;
     const colour = def?.colour ? new THREE.Color(def.colour) : LAYER_COLOURS[this.catalog.layers.indexOf(def) % LAYER_COLOURS.length];
     for (const c of this.view.cells) {
+      if (c.z !== this.level) continue;
       const v = c.maps[li] || 0;
       if (v <= 0.01) continue;
       const m = new THREE.Mesh(
         new THREE.PlaneGeometry(CELL, CELL).rotateX(-Math.PI / 2),
         new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: Math.min(0.7, 0.12 + (2.5 * v) / max), depthWrite: false }),
       );
-      m.position.copy(cellCenter(c.x, c.y)).setY(0.2);
+      m.position.copy(cellCenter(c.x, c.y, c.z)).add(new THREE.Vector3(0, 0.2, 0));
       m.renderOrder = 2;
       this.scene.add(m);
-      this.overlay.set(`${c.x},${c.y}`, m);
+      this.overlay.set(`${c.x},${c.y},${c.z}`, m);
     }
   }
 
@@ -433,15 +544,43 @@ export class View {
     const mat = new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.22, depthWrite: false });
     for (const [x, y] of cells) {
       const m = new THREE.Mesh(geo, mat);
-      m.position.copy(cellCenter(x, y)).setY(0.15);
+      m.position.copy(cellCenter(x, y, this.level)).add(new THREE.Vector3(0, 0.15, 0));
       m.renderOrder = 2;
       this.hints.add(m);
     }
   }
 
+  // Glowing bars on the edges where a wall can go (or come down): [x, y, side] on this level.
+  showEdgeHints(edges, colour = 0xfff3b0) {
+    this.hints.clear();
+    const mat = new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.45, depthWrite: false });
+    const geo = new THREE.BoxGeometry(CELL * 0.8, 0.25, 0.35);
+    for (const [x, y, side] of edges) {
+      const m = new THREE.Mesh(geo, mat);
+      this.placeEdge(m, x, y, side);
+      m.renderOrder = 2;
+      this.hints.add(m);
+    }
+  }
+
+  placeEdge(obj, x, y, side) {
+    const [dx, dy] = SIDES[side];
+    obj.position.copy(cellCenter(x, y, this.level)).add(new THREE.Vector3((dx * CELL) / 2, 0.2, (dy * CELL) / 2));
+    obj.rotation.y = dx ? Math.PI / 2 : 0;
+  }
+
   setHover(cell) {
     this.hover.visible = !!cell;
-    if (cell) this.hover.position.copy(cellCenter(cell[0], cell[1])).setY(0.18);
+    this.hover.scale.set(1, 1, 1);
+    this.hover.rotation.y = 0;
+    if (cell) this.hover.position.copy(cellCenter(cell[0], cell[1], this.level)).add(new THREE.Vector3(0, 0.18, 0));
+  }
+
+  setHoverEdge(edge) {
+    this.hover.visible = !!edge;
+    if (!edge) return;
+    this.placeEdge(this.hover, edge[0], edge[1], edge[2]);
+    this.hover.scale.set(0.9, 1, 0.12);
   }
 
   ray(clientX, clientY) {
@@ -451,13 +590,31 @@ export class View {
     return this.raycaster;
   }
 
-  pickCell(clientX, clientY) {
+  groundPoint(clientX, clientY) {
     const p = new THREE.Vector3();
-    if (!this.ray(clientX, clientY).ray.intersectPlane(this.ground, p)) return null;
+    this.ground.constant = -levelY(this.level);
+    return this.ray(clientX, clientY).ray.intersectPlane(this.ground, p) ? p : null;
+  }
+
+  pickCell(clientX, clientY) {
+    const p = this.groundPoint(clientX, clientY);
+    if (!p) return null;
     const x = Math.floor(p.x / CELL);
     const y = Math.floor(p.z / CELL);
-    const { width, height } = this.catalog.inn;
+    const [width, height] = this.grid;
     return x >= 0 && y >= 0 && x < width && y < height ? [x, y] : null;
+  }
+
+  // The cell side nearest the pointer: [x, y, side].
+  pickEdge(clientX, clientY) {
+    const cell = this.pickCell(clientX, clientY);
+    if (!cell) return null;
+    const p = this.groundPoint(clientX, clientY);
+    const fx = p.x / CELL - cell[0];
+    const fy = p.z / CELL - cell[1];
+    const d = { n: fy, s: 1 - fy, w: fx, e: 1 - fx };
+    const side = Object.keys(d).reduce((a, b) => (d[a] <= d[b] ? a : b));
+    return [cell[0], cell[1], side];
   }
 
   pickGuest(clientX, clientY) {
@@ -470,13 +627,14 @@ export class View {
 
   // Looks at the dug part of the inn, from far enough to see all of it.
   focus(cells) {
+    cells = cells.filter((c) => (c.z ?? 0) === this.level);
     if (!cells.length) return;
     let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
     for (const c of cells) {
       x0 = Math.min(x0, c.x); y0 = Math.min(y0, c.y);
       x1 = Math.max(x1, c.x); y1 = Math.max(y1, c.y);
     }
-    this.cam.target.set(((x0 + x1 + 1) / 2) * CELL, 0, ((y0 + y1 + 1) / 2) * CELL);
+    this.cam.target.set(((x0 + x1 + 1) / 2) * CELL, levelY(this.level), ((y0 + y1 + 1) / 2) * CELL);
     this.cam.dist = Math.min(110, Math.max(26, Math.max(x1 - x0 + 1, y1 - y0 + 1) * CELL * 1.15 + 8));
   }
 
@@ -517,7 +675,9 @@ export class View {
       v.obj.position.lerpVectors(v.from, v.to, t);
       v.mixer.update(dt);
     }
-    for (const g of [...this.cells.values()].map((c) => c.group).concat([...this.units.values()].map((u) => u.obj))) {
+    const popping = [...this.cells.values()].map((c) => c.group)
+      .concat([...this.units.values()].map((u) => u.obj), [...this.walls.values()].map((w) => w.obj));
+    for (const g of popping) {
       if (g.userData.pop === undefined) continue;
       g.userData.pop = Math.min(1, g.userData.pop + dt * 4);
       const e = 1 - Math.pow(1 - g.userData.pop, 3);
@@ -542,4 +702,14 @@ function starfield(n, w, h) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xdfe8ff, size: 0.5, sizeAttenuation: true, fog: false }));
+}
+
+// Where stairs come out on the next level: a ring on the floor.
+function landingMark() {
+  const m = new THREE.Mesh(
+    new THREE.RingGeometry(1.0, 1.4, 4, 1).rotateX(-Math.PI / 2).rotateY(Math.PI / 4),
+    new THREE.MeshBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0.6, depthWrite: false }),
+  );
+  m.renderOrder = 2;
+  return m;
 }

@@ -43,6 +43,15 @@ pub struct InnDef {
     pub nights: u32,
     /// At most this many guests at once.
     pub max_guests: usize,
+    /// Levels you can dig in a season (joined by stairs), and whether they go down (a dungeon)
+    /// or up (a tower, a station's decks).
+    pub levels: usize,
+    pub down: bool,
+    /// The endless mode's grid: width, height, levels and most guests at once.
+    pub endless: (usize, usize, usize, usize),
+    /// Costs of an inner wall and of a door on the edge between two dug cells.
+    pub wall_cost: f64,
+    pub door_cost: f64,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -71,6 +80,8 @@ pub struct RoomDef {
     pub cost: f64,
     pub colour: String,
     pub floor: String,
+    /// Watabou Dwellings room names that import as this room (`living-room`; `*` for any).
+    pub dwellings: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -86,6 +97,8 @@ pub struct UnitKind {
     /// Local stock the unit starts with.
     pub start: Vec<(usize, f64)>,
     pub model: String,
+    /// Stairs: join their cell to the same cell one level further (down or up).
+    pub stairs: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -360,6 +373,7 @@ fn room(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
         cost: 0.0,
         colour: "#888888".into(),
         floor: String::new(),
+        dwellings: Vec::new(),
     };
     for l in &b.lines {
         match l.words[0].as_str() {
@@ -368,11 +382,19 @@ fn room(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
             // Hex without `#` (which starts a comment): `colour b5734a`.
             "colour" | "color" => r.colour = format!("#{}", word(f, l, 1)?.trim_start_matches('#')),
             "floor" => r.floor = word(f, l, 1)?.to_string(),
+            "dwellings" => r
+                .dwellings
+                .extend(l.words[1..].iter().map(|w| dwellings_name(w))),
             _ => return Err(unknown(f, b, l)),
         }
     }
     rs.rooms.push(r);
     Ok(())
+}
+
+/// A Dwellings room name as rulesets write it: lower case, `-` for spaces.
+pub fn dwellings_name(name: &str) -> String {
+    name.trim().to_lowercase().replace([' ', '_'], "-")
 }
 
 fn need(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
@@ -405,8 +427,10 @@ fn unit(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
     let (mut cost, mut seats, mut rooms, mut start, mut model) =
         (0.0, 1, Vec::new(), Vec::new(), String::new());
     let mut starts: Vec<(String, f64, &Line)> = Vec::new();
+    let mut stairs = false;
     for l in &b.lines {
         match l.words[0].as_str() {
+            "stairs" => stairs = true,
             "name" => name = text(l),
             "cost" => cost = number(f, l, 1)?,
             "seats" => seats = number(f, l, 1)?.max(0.0) as u32,
@@ -441,6 +465,7 @@ fn unit(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
         seats,
         start,
         model,
+        stairs,
     });
     Ok(())
 }
@@ -459,8 +484,12 @@ fn inn(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
         review: 2.0,
         nights: 7,
         max_guests: 12,
+        levels: 1,
+        wall_cost: 4.0,
+        door_cost: 8.0,
         ..Default::default()
     };
+    let mut endless = None;
     let (mut money, mut rep, mut entrance_room) = (None, None, None);
     for l in &b.lines {
         match l.words[0].as_str() {
@@ -490,6 +519,26 @@ fn inn(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
             }
             "nights" => d.nights = number(f, l, 1)?.max(1.0) as u32,
             "guests" => d.max_guests = number(f, l, 1)?.max(1.0) as usize,
+            "levels" => {
+                d.levels = number(f, l, 1)?.max(1.0) as usize;
+                d.down = match l.words.get(2).map(String::as_str) {
+                    None | Some("up") => false,
+                    Some("down") => true,
+                    Some(w) => {
+                        return Err(err(f, l, format!("levels go `up` or `down`, not {w:?}")))
+                    }
+                };
+            }
+            "endless" => {
+                endless = Some((
+                    number(f, l, 1)?.max(1.0) as usize,
+                    number(f, l, 2)?.max(1.0) as usize,
+                    number(f, l, 3)?.max(1.0) as usize,
+                    number(f, l, 4)?.max(1.0) as usize,
+                ))
+            }
+            "wall" => d.wall_cost = number(f, l, 1)?,
+            "door" => d.door_cost = number(f, l, 1)?,
             _ => return Err(unknown(f, b, l)),
         }
     }
@@ -502,6 +551,10 @@ fn inn(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
     }
     if d.entrance.0 >= d.width || d.entrance.1 >= d.height {
         return Err(at("the entrance is outside the grid"));
+    }
+    d.endless = endless.unwrap_or((d.width, d.height, d.levels.max(3), d.max_guests));
+    if d.entrance.0 >= d.endless.0 || d.entrance.1 >= d.endless.1 {
+        return Err(at("the entrance is outside the endless grid"));
     }
     rs.inn = d;
     Ok(())
@@ -722,6 +775,9 @@ impl Ruleset {
                 "entrance": [self.inn.entrance.0, self.inn.entrance.1],
                 "money": res(self.inn.money), "reputation": res(self.inn.reputation),
                 "nights": self.inn.nights, "guests": self.inn.max_guests,
+                "levels": self.inn.levels, "down": self.inn.down,
+                "endless": [self.inn.endless.0, self.inn.endless.1, self.inn.endless.2, self.inn.endless.3],
+                "wall": self.inn.wall_cost, "door": self.inn.door_cost,
             },
             "phases": self.phases.iter().map(|p| json!({
                 "id": p.id, "name": p.name, "length": p.length, "build": p.build, "open": p.open, "night": p.night,
@@ -733,9 +789,11 @@ impl Ruleset {
             "look": self.look.iter().map(|(k, v)| (k.clone(), serde_json::Value::from(v.clone()))).collect::<serde_json::Map<_, _>>(),
             "rooms": self.rooms.iter().map(|r| json!({
                 "id": r.id, "name": r.name, "cost": r.cost, "colour": r.colour, "floor": r.floor,
+                "dwellings": r.dwellings,
             })).collect::<Vec<_>>(),
             "units": self.units.iter().map(|u| json!({
                 "id": u.id, "name": u.name, "cost": u.cost, "seats": u.seats, "model": u.model,
+                "stairs": u.stairs,
                 "rooms": u.rooms.iter().map(|&r| self.rooms[r].id.clone()).collect::<Vec<_>>(),
                 "services": self.services.iter().filter(|s| s.units.contains(&self.unit(&u.id).unwrap()))
                     .map(|s| s.id.clone()).collect::<Vec<_>>(),

@@ -12,19 +12,24 @@
 //!
 //! Requests (`op`):
 //!
-//! * `start` `{files: [[name, text], ...], seed, commands?}`: compiles the ruleset and starts a
-//!   game (replaying `commands`, a save). Answers `{catalog, view, events}`.
+//! * `start` `{files: [[name, text], ...], seed, mode?, commands?}`: compiles the ruleset and
+//!   starts a game (`season` or `endless`; replaying `commands`, a save). Answers
+//!   `{catalog, view, events}`.
 //! * `apply` `{command}` (`{"do": "dig", "x": 1, "y": 2, "room": "taproom"}`, see
 //!   `openinn::Command`): answers `{view, events}`, or `{error}` and nothing changes.
-//! * `view`; `save` (answers `{seed, commands}`).
+//! * `view`; `save` (answers `{seed, mode, commands}`).
+//! * `export`: the building as a watabou Dwellings JSON document (answers `{dwellings}`).
+//! * `import` `{dwellings, mode?}`: a Dwellings document as a plan for a new game of the started
+//!   ruleset (answers `{plan, warnings}`: start a game with `commands: [plan]`).
 
 use std::cell::RefCell;
 
-use openinn::{load, Command, Game};
+use openinn::{dwellings, load, Command, Game, Mode, Ruleset};
 use serde_json::{json, Value};
 
 thread_local! {
     static GAME: RefCell<Option<Game>> = const { RefCell::new(None) };
+    static RULES: RefCell<Option<Ruleset>> = const { RefCell::new(None) };
     static OUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -72,9 +77,14 @@ pub fn handle(req: &Value) -> Result<Value, String> {
             let files: Vec<(String, String)> =
                 serde_json::from_value(req["files"].clone()).map_err(|e| format!("files: {e}"))?;
             let seed = req["seed"].as_str().unwrap_or("1");
+            let mode: Mode = match req.get("mode").filter(|m| !m.is_null()) {
+                Some(m) => serde_json::from_value(m.clone()).map_err(|e| format!("mode: {e}"))?,
+                None => Mode::Season,
+            };
             let rs = load(&files).map_err(|e| e.to_string())?;
             let catalog = rs.catalog();
-            let mut game = Game::new(rs, seed);
+            RULES.with(|r| *r.borrow_mut() = Some(rs.clone()));
+            let mut game = Game::with_mode(rs, seed, mode);
             let mut events = Vec::new();
             if let Some(cmds) = req.get("commands").filter(|c| !c.is_null()) {
                 let cmds: Vec<Command> =
@@ -101,7 +111,23 @@ pub fn handle(req: &Value) -> Result<Value, String> {
                     Ok(json!({ "view": game.snapshot(), "events": events }))
                 }
                 "view" => Ok(json!({ "view": game.snapshot() })),
-                "save" => Ok(json!({ "seed": game.seed, "commands": game.commands })),
+                "save" => {
+                    Ok(json!({ "seed": game.seed, "mode": game.mode, "commands": game.commands }))
+                }
+                "export" => Ok(json!({ "dwellings": dwellings::export(game) })),
+                "import" => {
+                    let mode: Mode = match req.get("mode").filter(|m| !m.is_null()) {
+                        Some(m) => {
+                            serde_json::from_value(m.clone()).map_err(|e| format!("mode: {e}"))?
+                        }
+                        None => game.mode,
+                    };
+                    let rs = RULES
+                        .with(|r| r.borrow().clone())
+                        .ok_or("start a game first")?;
+                    let im = dwellings::import(&rs, mode, &req["dwellings"])?;
+                    Ok(json!({ "plan": im.plan, "warnings": im.warnings }))
+                }
                 _ => Err(format!("unknown op {op:?}")),
             }
         }),

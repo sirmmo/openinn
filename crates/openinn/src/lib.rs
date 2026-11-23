@@ -11,6 +11,7 @@
 //! leave a review; and phases (building by day, serving by night) that set global flags the
 //! rules can test.
 
+pub mod dwellings;
 mod script;
 mod sim;
 
@@ -19,4 +20,7 @@ pub use script::{
     load, load_dir, GuestDef, InnDef, NeedDef, PhaseDef, RoomDef, Ruleset, ServiceDef, UnitKind,
     HOST_KINDS,
 };
-pub use sim::{CellView, Command, Event, Game, GuestView, Snapshot, Stats, UnitView};
+pub use sim::{
+    CellView, Command, Event, Game, GuestView, Mode, PlanAt, PlanCell, PlanWall, Side, Snapshot,
+    Stats, UnitView, WallView,
+};

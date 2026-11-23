@@ -20,7 +20,17 @@ fn every_ruleset_plays_a_season() {
         let mut g = Game::new(rs, "1");
         bot::season_with(&mut g, &bot::plan_for(&dir));
         assert!(g.over, "{}: the season did not end", dir.display());
-        assert!(g.stats.served > 50, "{}: only {} served", dir.display(), g.stats.served);
-        assert!(g.stats.happy > g.stats.angry, "{}: {:?}", dir.display(), g.stats);
+        assert!(
+            g.stats.served > 50,
+            "{}: only {} served",
+            dir.display(),
+            g.stats.served
+        );
+        assert!(
+            g.stats.happy > g.stats.angry,
+            "{}: {:?}",
+            dir.display(),
+            g.stats
+        );
     }
 }

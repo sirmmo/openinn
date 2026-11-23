@@ -30,8 +30,15 @@ inn dungeon
     start Gold 320             # global resources at the start (any number of lines)
     nights 7                   # the season ends after this many night phases
     guests 14                  # at most this many guests at once
+    levels 2 down              # levels to dig in a season, joined by stairs: `down` or `up`
+    endless 18 14 5 30         # the endless mode's grid, levels and most guests at once
+    wall 4                     # an inner wall between two dug cells costs this
+    door 8                     # and a door
 end
 ```
+
+The **endless mode** has no last night: the inn opens night after night on the larger grid,
+with more levels to dig. Each mode keeps its own save.
 
 ## phase
 
@@ -73,6 +80,7 @@ room taproom
     cost 10                    # money per cell dug
     colour b5734a              # for maps and the interface
     floor floor_wood_large     # a hint for the view: a model (see Model hints)
+    dwellings living-room room *       # Dwellings rooms that import as this (see Dwellings)
 end
 ```
 
@@ -90,6 +98,18 @@ unit bar
     model bar_straight_A       # a hint for the view (see Model hints)
 end
 ```
+
+A unit with the line `stairs` joins its cell to the same cell on the next level (below in an
+inn whose levels go `down`, above in one that goes `up`). A cell on another level can be dug
+next to a dug cell on its own level, or where stairs lead. Guests take the stairs, and so do
+noise, heat and the rest: stairs are a link in the GlassBox graph like any other.
+
+## Walls and doors
+
+Dug cells next to each other are open to each other. A **wall** on the edge between them (the
+`wall` command, at the inn's `wall` cost) cuts the link: guests walk round it, and layers no
+longer spread across it, so a wall between the taproom and the dormitory keeps the noise out.
+A **door** (`door` cost) lets guests and layers through, and marks a room's way in.
 
 ## need
 
@@ -168,6 +188,12 @@ look station
     loading Pressurising the airlock    # shown while the models load
     arrive comes aboard through the airlock   # "A Freighter pilot comes aboard through the airlock."
     seeds orbit comet nebula   # words for new seeds (orbit-4821)
+    inner 0.55                 # inner walls and doors, at this part of a wall's height
+    door wall_doorway          # the model for doors
+    level 7                    # how far apart levels are drawn
+    levelname Deck             # "Deck 2/5"
+    wallname Bulkhead          # the names of the wall and door tools
+    doorname Hatch
     help help.html             # the help window's text: an HTML file in the ruleset's folder
     style style.css            # a stylesheet for the page, in the ruleset's folder
 end
@@ -188,6 +214,22 @@ cells from the centre of the cell (towards the wall behind it is −z). A table 
 
 Units turn their back to a wall when they have one.
 
+## Dwellings
+
+Buildings import from and export to the JSON format of watabou's
+[Dwellings](https://watabou.github.io/dwellings/) generator (its "Export as JSON"). On import,
+the house is turned so its exit faces north and moved so the exit is the inn's entrance. Each
+room becomes the room kind whose `dwellings` line lists its name (lower case, `-` for spaces:
+`living-room`), else the kind with that name, else the kind listing `*`. Rooms are walled from
+each other; their doors become doors and their doorways stay open. The house's floors stack the
+way the inn's levels go, and its stairs become the ruleset's first `stairs` unit. Cells that do
+not fit, or that cannot be reached from the entrance, are left out. The game starts with the
+building already built, at no cost.
+
+Dwellings names its rooms: room, corridor, stairhall, armoury, attic, bathroom, bedroom, cellar,
+chapel, gallery, greenhouse, hall, kitchen, laboratory, library, lookout, observatory, secret
+passage, living room, study, workshop, studio, trophy room, vault, storage.
+
 ## Testing a ruleset
 
 `cargo test` plays a season of every folder in `games/` with a simple bot, which needs a
@@ -197,6 +239,9 @@ night by night.
 
 ## Commands
 
-`dig {x, y, room}`, `build {x, y, unit}`, `remove {x, y}` (half the cost back) in building
-phases; `next` ends a phase that waits for the player; `tick {n}` runs a timed phase on;
-`eject {guest}` shows a guest the door without a review.
+`dig {x, y, z, room}`, `build {x, y, z, unit}`, `remove {x, y, z}` (half the cost back),
+`wall {x, y, z, side, door}` and `unwall {x, y, z, side}` in building phases (`z` is the level,
+0 by default; `side` is `n`, `e`, `s` or `w`); `next` ends a phase that waits for the player;
+`tick {n}` runs a timed phase on; `eject {guest}` shows a guest the door without a review;
+`plan {cells, walls, stairs}` builds a whole building, free, as a game's first command (an
+import). See [the engine](ENGINE.md).

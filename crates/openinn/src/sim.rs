@@ -1,25 +1,151 @@
-//! The inn: a grid of dug cells (each one a GlassBox place), units standing on them, guests
-//! walking between them, and phases that open and close the doors.
+//! The inn: a grid of dug cells on one or more levels (each cell a GlassBox place, joined to its
+//! neighbours unless a wall stands between them, and to the next level by stairs), units
+//! standing on them, guests walking between them, and phases that open and close the doors.
 //!
-//! Everything is deterministic: the seed and the list of commands give the same game on every
-//! machine, so a save is just `{ seed, commands }`.
+//! Everything is deterministic: the seed, the mode and the list of commands give the same game
+//! on every machine, so a save is just `{ seed, mode, commands }`.
 
 use glassbox::{emit, step, Scope, State};
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 use crate::script::{Ruleset, Test};
 
-/// What the player can do.
+/// How a game runs: a season of the ruleset's nights, or on and on with more room to grow.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Mode {
+    #[default]
+    Season,
+    Endless,
+}
+
+/// A side of a cell: `n`, `e`, `s` or `w`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum Side {
+    #[serde(rename = "n")]
+    N,
+    #[serde(rename = "e")]
+    E,
+    #[serde(rename = "s")]
+    S,
+    #[serde(rename = "w")]
+    W,
+}
+
+impl Side {
+    pub const ALL: [Side; 4] = [Side::N, Side::E, Side::S, Side::W];
+    pub fn delta(self) -> (i64, i64) {
+        match self {
+            Side::N => (0, -1),
+            Side::E => (1, 0),
+            Side::S => (0, 1),
+            Side::W => (-1, 0),
+        }
+    }
+    pub fn letter(self) -> &'static str {
+        match self {
+            Side::N => "n",
+            Side::E => "e",
+            Side::S => "s",
+            Side::W => "w",
+        }
+    }
+    /// A quarter turn clockwise (north becomes east).
+    pub fn cw(self) -> Side {
+        match self {
+            Side::N => Side::E,
+            Side::E => Side::S,
+            Side::S => Side::W,
+            Side::W => Side::N,
+        }
+    }
+}
+
+/// A cell of a building plan (see `Command::Plan`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanCell {
+    pub x: usize,
+    pub y: usize,
+    #[serde(default)]
+    pub z: usize,
+    pub room: String,
+}
+
+/// An inner wall or door of a building plan.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanWall {
+    pub x: usize,
+    pub y: usize,
+    #[serde(default)]
+    pub z: usize,
+    pub side: Side,
+    #[serde(default)]
+    pub door: bool,
+}
+
+/// Where stairs stand in a building plan: they join (x, y, z) to (x, y, z + 1).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanAt {
+    pub x: usize,
+    pub y: usize,
+    #[serde(default)]
+    pub z: usize,
+}
+
+/// What the player can do. `z` is the level (0: the entrance's; it may be left out).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "do", rename_all = "lowercase")]
 pub enum Command {
-    /// Dig a cell next to the inn as a room kind (in a building phase).
-    Dig { x: usize, y: usize, room: String },
+    /// Dig a cell next to the inn (or under or over stairs) as a room kind (in a building phase).
+    Dig {
+        x: usize,
+        y: usize,
+        #[serde(default)]
+        z: usize,
+        room: String,
+    },
     /// Put a unit on a dug cell (in a building phase).
-    Build { x: usize, y: usize, unit: String },
+    Build {
+        x: usize,
+        y: usize,
+        #[serde(default)]
+        z: usize,
+        unit: String,
+    },
     /// Take a unit away; half its cost comes back.
-    Remove { x: usize, y: usize },
+    Remove {
+        x: usize,
+        y: usize,
+        #[serde(default)]
+        z: usize,
+    },
+    /// Put a wall, or a door, on the side of a dug cell towards another dug cell.
+    Wall {
+        x: usize,
+        y: usize,
+        #[serde(default)]
+        z: usize,
+        side: Side,
+        #[serde(default)]
+        door: bool,
+    },
+    /// Take a wall or door away; half its cost comes back.
+    Unwall {
+        x: usize,
+        y: usize,
+        #[serde(default)]
+        z: usize,
+        side: Side,
+    },
+    /// A whole building at once, free: only as a game's first command (an imported plan).
+    Plan {
+        cells: Vec<PlanCell>,
+        #[serde(default)]
+        walls: Vec<PlanWall>,
+        #[serde(default)]
+        stairs: Vec<PlanAt>,
+    },
     /// End a phase that waits for the player.
     Next,
     /// Run a timed phase on for some ticks.
@@ -44,6 +170,7 @@ pub enum Event {
         service: String,
         x: usize,
         y: usize,
+        z: usize,
         price: f64,
     },
     Leave {
@@ -88,6 +215,14 @@ pub struct Stats {
 pub struct Game {
     pub rs: Ruleset,
     pub seed: String,
+    pub mode: Mode,
+    /// The grid for this mode: width, height, levels; and the most guests at once.
+    pub width: usize,
+    pub height: usize,
+    pub levels: usize,
+    max_guests: usize,
+    /// Inner walls between two dug cells, `(lower cell, higher cell)` -> is it a door.
+    walls: BTreeMap<(usize, usize), bool>,
     rng: u64,
     /// Room kind of each cell of the grid, if dug.
     room: Vec<Option<usize>>,
@@ -125,12 +260,32 @@ fn hash(s: &str) -> u64 {
 }
 
 impl Game {
+    /// A season of the ruleset.
     pub fn new(rs: Ruleset, seed: &str) -> Game {
-        let n = rs.inn.width * rs.inn.height;
+        Game::with_mode(rs, seed, Mode::Season)
+    }
+
+    pub fn with_mode(rs: Ruleset, seed: &str, mode: Mode) -> Game {
+        let (width, height, levels, max_guests) = match mode {
+            Mode::Season => (
+                rs.inn.width,
+                rs.inn.height,
+                rs.inn.levels,
+                rs.inn.max_guests,
+            ),
+            Mode::Endless => rs.inn.endless,
+        };
+        let n = width * height * levels;
         let gb = State::new(&rs.rules, 0, 1);
         let mut g = Game {
             rs,
             seed: seed.to_string(),
+            mode,
+            width,
+            height,
+            levels,
+            max_guests,
+            walls: BTreeMap::new(),
             rng: hash(seed),
             room: vec![None; n],
             place: vec![NONE; n],
@@ -156,16 +311,25 @@ impl Game {
         for (r, v) in start {
             g.gb.accounts[0][r] = v;
         }
-        let (ex, ey) = g.rs.inn.entrance;
         let er = g.rs.inn.entrance_room;
-        g.open_cell(g.cell(ex, ey), er);
+        g.open_cell(g.entrance(), er);
         g.enter_phase();
         g
     }
 
-    /// Replays a saved game.
+    /// Replays a saved season.
     pub fn replay(rs: Ruleset, seed: &str, commands: &[Command]) -> Result<Game, String> {
-        let mut g = Game::new(rs, seed);
+        Game::replay_mode(rs, seed, Mode::Season, commands)
+    }
+
+    /// Replays a saved game.
+    pub fn replay_mode(
+        rs: Ruleset,
+        seed: &str,
+        mode: Mode,
+        commands: &[Command],
+    ) -> Result<Game, String> {
+        let mut g = Game::with_mode(rs, seed, mode);
         for c in commands {
             g.apply(c.clone())?;
         }
@@ -188,31 +352,76 @@ impl Game {
         lo + (hi - lo) * self.rand()
     }
 
-    pub fn cell(&self, x: usize, y: usize) -> usize {
-        y * self.rs.inn.width + x
+    pub fn cell(&self, x: usize, y: usize, z: usize) -> usize {
+        (z * self.height + y) * self.width + x
     }
 
-    fn xy(&self, c: usize) -> (usize, usize) {
-        (c % self.rs.inn.width, c / self.rs.inn.width)
+    pub fn xyz(&self, c: usize) -> (usize, usize, usize) {
+        let plane = self.width * self.height;
+        (c % self.width, (c % plane) / self.width, c / plane)
     }
 
+    fn entrance(&self) -> usize {
+        self.cell(self.rs.inn.entrance.0, self.rs.inn.entrance.1, 0)
+    }
+
+    /// The cell inside the grid, or an error.
+    fn at(&self, x: usize, y: usize, z: usize) -> Result<usize, String> {
+        if x >= self.width || y >= self.height || z >= self.levels {
+            return Err("that is outside the inn".into());
+        }
+        Ok(self.cell(x, y, z))
+    }
+
+    /// The cell next to `c` on the same level, on side `s`.
+    fn beside(&self, c: usize, s: Side) -> Option<usize> {
+        let (x, y, z) = self.xyz(c);
+        let (dx, dy) = s.delta();
+        let (nx, ny) = (x as i64 + dx, y as i64 + dy);
+        if nx < 0 || ny < 0 || nx >= self.width as i64 || ny >= self.height as i64 {
+            return None;
+        }
+        Some(self.cell(nx as usize, ny as usize, z))
+    }
+
+    /// Neighbouring cells on the same level.
     fn neighbours(&self, c: usize) -> Vec<usize> {
-        let (x, y) = self.xy(c);
-        let (w, h) = (self.rs.inn.width, self.rs.inn.height);
-        let mut out = Vec::new();
-        if y > 0 {
-            out.push(c - w);
+        Side::ALL
+            .iter()
+            .filter_map(|&s| self.beside(c, s))
+            .collect()
+    }
+
+    fn is_stairs(&self, c: usize) -> bool {
+        self.unit_at[c].is_some_and(|u| self.rs.units[self.unit_kind[u]].stairs)
+    }
+
+    /// The cell one level further than `c` (the level its stairs lead to).
+    fn next_level(&self, c: usize) -> Option<usize> {
+        let (x, y, z) = self.xyz(c);
+        (z + 1 < self.levels).then(|| self.cell(x, y, z + 1))
+    }
+
+    fn link(&mut self, a: usize, b: usize) {
+        let (p, q) = (self.place[a], self.place[b]);
+        if p == NONE || q == NONE || self.graph[p].contains(&q) {
+            return;
         }
-        if x + 1 < w {
-            out.push(c + 1);
+        self.graph[p].push(q);
+        self.graph[q].push(p);
+    }
+
+    fn unlink(&mut self, a: usize, b: usize) {
+        let (p, q) = (self.place[a], self.place[b]);
+        if p == NONE || q == NONE {
+            return;
         }
-        if y + 1 < h {
-            out.push(c + w);
-        }
-        if x > 0 {
-            out.push(c - 1);
-        }
-        out
+        self.graph[p].retain(|&n| n != q);
+        self.graph[q].retain(|&n| n != p);
+    }
+
+    fn edge(a: usize, b: usize) -> (usize, usize) {
+        (a.min(b), a.max(b))
     }
 
     pub fn global(&self, r: usize) -> f64 {
@@ -249,13 +458,71 @@ impl Game {
         self.cell_of.push(c);
         self.graph.push(Vec::new());
         for n in self.neighbours(c) {
-            if self.place[n] != NONE {
-                let q = self.place[n];
-                self.graph[p].push(q);
-                self.graph[q].push(p);
+            if !self.walls.get(&Game::edge(c, n)).is_some_and(|door| !door) {
+                self.link(c, n);
+            }
+        }
+        // Stairs on the level before lead here.
+        let (x, y, z) = self.xyz(c);
+        if z > 0 {
+            let up = self.cell(x, y, z - 1);
+            if self.is_stairs(up) {
+                self.link(up, c);
             }
         }
         self.gb.sync(&self.rs.rules, self.graph.len());
+    }
+
+    /// Whether a cell may be dug: next to a dug cell on its level, or where stairs lead.
+    fn diggable(&self, c: usize) -> bool {
+        let (x, y, z) = self.xyz(c);
+        self.neighbours(c).iter().any(|&n| self.room[n].is_some())
+            || (z > 0 && self.is_stairs(self.cell(x, y, z - 1)))
+    }
+
+    fn put_unit(&mut self, cell: usize, k: usize) {
+        let kind = &self.rs.units[k];
+        let (def, start) = (kind.def, kind.start.clone());
+        let u = self.gb.add_unit(&self.rs.rules, def, self.place[cell], 0);
+        for (r, v) in start {
+            self.gb.units[u].stock[r] = v;
+        }
+        self.unit_at[cell] = Some(u);
+        self.unit_kind.push(k);
+        self.unit_cell.push(cell);
+        self.seated.push(0);
+        if self.rs.units[k].stairs {
+            if let Some(next) = self.next_level(cell) {
+                self.link(cell, next);
+            }
+        }
+    }
+
+    /// The other cell of an inner edge, checking both are dug.
+    fn inner_edge(
+        &self,
+        x: usize,
+        y: usize,
+        z: usize,
+        side: Side,
+    ) -> Result<(usize, usize), String> {
+        let a = self.at(x, y, z)?;
+        let b = self
+            .beside(a, side)
+            .ok_or("there is nothing on that side")?;
+        if self.room[a].is_none() || self.room[b].is_none() {
+            return Err("walls go between two dug cells".into());
+        }
+        Ok((a, b))
+    }
+
+    fn set_wall(&mut self, a: usize, b: usize, door: bool) {
+        self.walls.insert(Game::edge(a, b), door);
+        if door {
+            self.link(a, b);
+        } else {
+            self.unlink(a, b);
+        }
     }
 
     // ---------- commands ----------
@@ -268,7 +535,7 @@ impl Game {
         let ph = &self.rs.phases[self.phase];
         let (build, timed) = (ph.build, ph.length > 0);
         match &c {
-            Command::Dig { x, y, room } => {
+            Command::Dig { x, y, z, room } => {
                 if !build {
                     return Err("you can only dig while building".into());
                 }
@@ -276,24 +543,21 @@ impl Game {
                     .rs
                     .room(room)
                     .ok_or_else(|| format!("there is no room {room:?}"))?;
-                if *x >= self.rs.inn.width || *y >= self.rs.inn.height {
-                    return Err("that is outside the inn".into());
-                }
-                let cell = self.cell(*x, *y);
+                let cell = self.at(*x, *y, *z)?;
                 if self.room[cell].is_some() {
                     return Err("that is already dug".into());
                 }
-                if !self
-                    .neighbours(cell)
-                    .iter()
-                    .any(|&n| self.room[n].is_some())
-                {
-                    return Err("dig next to the inn".into());
+                if !self.diggable(cell) {
+                    return Err(if *z > 0 {
+                        "dig next to the inn, or where stairs lead".into()
+                    } else {
+                        "dig next to the inn".into()
+                    });
                 }
                 self.pay(self.rs.rooms[r].cost)?;
                 self.open_cell(cell, r);
             }
-            Command::Build { x, y, unit } => {
+            Command::Build { x, y, z, unit } => {
                 if !build {
                     return Err("you can only build while building".into());
                 }
@@ -301,10 +565,7 @@ impl Game {
                     .rs
                     .unit(unit)
                     .ok_or_else(|| format!("there is no unit {unit:?}"))?;
-                if *x >= self.rs.inn.width || *y >= self.rs.inn.height {
-                    return Err("that is outside the inn".into());
-                }
-                let cell = self.cell(*x, *y);
+                let cell = self.at(*x, *y, *z)?;
                 let room = self.room[cell].ok_or("dig there first")?;
                 if self.unit_at[cell].is_some() {
                     return Err("something already stands there".into());
@@ -318,32 +579,82 @@ impl Game {
                         .collect();
                     return Err(format!("a {} belongs in: {}", kind.name, names.join(", ")));
                 }
-                let (cost, def, start) = (kind.cost, kind.def, kind.start.clone());
-                self.pay(cost)?;
-                let u = self.gb.add_unit(&self.rs.rules, def, self.place[cell], 0);
-                for (r, v) in start {
-                    self.gb.units[u].stock[r] = v;
+                if kind.stairs && self.next_level(cell).is_none() {
+                    return Err(format!(
+                        "there is no level {} this one",
+                        if self.rs.inn.down { "below" } else { "above" }
+                    ));
                 }
-                self.unit_at[cell] = Some(u);
-                self.unit_kind.push(k);
-                self.unit_cell.push(cell);
-                self.seated.push(0);
+                self.pay(kind.cost)?;
+                self.put_unit(cell, k);
             }
-            Command::Remove { x, y } => {
+            Command::Remove { x, y, z } => {
                 if !build {
                     return Err("you can only remove things while building".into());
                 }
-                let cell = self.cell(*x, *y);
-                let u = self
-                    .unit_at
-                    .get(cell)
-                    .copied()
-                    .flatten()
-                    .ok_or("nothing stands there")?;
+                let cell = self.at(*x, *y, *z)?;
+                let u = self.unit_at[cell].ok_or("nothing stands there")?;
+                let k = self.unit_kind[u];
+                if self.rs.units[k].stairs {
+                    if let Some(next) = self.next_level(cell) {
+                        self.unlink(cell, next);
+                    }
+                }
                 self.gb.units[u].alive = false;
                 self.unit_at[cell] = None;
                 let m = self.rs.inn.money;
-                self.gb.accounts[0][m] += self.rs.units[self.unit_kind[u]].cost / 2.0;
+                self.gb.accounts[0][m] += self.rs.units[k].cost / 2.0;
+            }
+            Command::Wall {
+                x,
+                y,
+                z,
+                side,
+                door,
+            } => {
+                if !build {
+                    return Err("you can only build walls while building".into());
+                }
+                let (a, b) = self.inner_edge(*x, *y, *z, *side)?;
+                if self.walls.get(&Game::edge(a, b)) == Some(door) {
+                    return Err(format!(
+                        "there is already a {} there",
+                        if *door { "door" } else { "wall" }
+                    ));
+                }
+                self.pay(if *door {
+                    self.rs.inn.door_cost
+                } else {
+                    self.rs.inn.wall_cost
+                })?;
+                self.set_wall(a, b, *door);
+            }
+            Command::Unwall { x, y, z, side } => {
+                if !build {
+                    return Err("you can only take walls down while building".into());
+                }
+                let (a, b) = self.inner_edge(*x, *y, *z, *side)?;
+                let door = self
+                    .walls
+                    .remove(&Game::edge(a, b))
+                    .ok_or("there is no wall there")?;
+                self.link(a, b);
+                let m = self.rs.inn.money;
+                self.gb.accounts[0][m] += if door {
+                    self.rs.inn.door_cost
+                } else {
+                    self.rs.inn.wall_cost
+                } / 2.0;
+            }
+            Command::Plan {
+                cells,
+                walls,
+                stairs,
+            } => {
+                if !self.commands.is_empty() || !build {
+                    return Err("a plan can only be a game's first command".into());
+                }
+                self.plan(cells, walls, stairs)?;
             }
             Command::Next => {
                 if timed {
@@ -402,7 +713,7 @@ impl Game {
         }
         if night {
             self.nights_done += 1;
-            if self.nights_done >= self.rs.inn.nights {
+            if self.mode == Mode::Season && self.nights_done >= self.rs.inn.nights {
                 self.over = true;
                 self.events.push(Event::Over {
                     money: self.money(),
@@ -436,7 +747,7 @@ impl Game {
     }
 
     fn arrivals(&mut self, ph: &crate::script::PhaseDef) {
-        if self.guests.len() >= self.rs.inn.max_guests {
+        if self.guests.len() >= self.max_guests {
             return;
         }
         let mut chance = ph.arrive;
@@ -446,7 +757,7 @@ impl Game {
         if self.rand() >= chance {
             return;
         }
-        let entrance = self.cell(self.rs.inn.entrance.0, self.rs.inn.entrance.1);
+        let entrance = self.entrance();
         let ok: Vec<usize> = (0..self.rs.guests.len())
             .filter(|&k| {
                 self.rs.guests[k]
@@ -501,23 +812,26 @@ impl Game {
     /// The nearest cell (breadth first, from `from`) with a unit that can give a service for
     /// `need` now: a free seat, its stock, and a price the guest can pay. Returns the first step
     /// towards it, the unit and the service.
+    /// Guests walk the GlassBox graph: through open edges and doors, and up and down stairs.
     fn find(&self, from: usize, need: usize, purse: f64) -> Option<(usize, usize, usize)> {
-        let mut prev = vec![NONE; self.room.len()];
-        let mut q = VecDeque::from([from]);
-        prev[from] = from;
-        while let Some(c) = q.pop_front() {
+        let start = self.place[from];
+        let mut prev = vec![NONE; self.graph.len()];
+        let mut q = VecDeque::from([start]);
+        prev[start] = start;
+        while let Some(p) = q.pop_front() {
+            let c = self.cell_of[p];
             if let Some(u) = self.unit_at[c] {
                 if let Some(s) = self.offer(u, need, purse) {
-                    let mut step = c;
-                    while prev[step] != from && step != from {
+                    let mut step = p;
+                    while prev[step] != start && step != start {
                         step = prev[step];
                     }
-                    return Some((step, u, s));
+                    return Some((self.cell_of[step], u, s));
                 }
             }
-            for n in self.neighbours(c) {
-                if self.room[n].is_some() && prev[n] == NONE {
-                    prev[n] = c;
+            for &n in &self.graph[p] {
+                if prev[n] == NONE {
+                    prev[n] = p;
                     q.push_back(n);
                 }
             }
@@ -641,7 +955,7 @@ impl Game {
                         radius,
                     );
                 }
-                let (x, y) = self.xy(cell);
+                let (x, y, z) = self.xyz(cell);
                 let g = &mut self.guests[i];
                 g.purse -= sv.price;
                 g.waiting = 0;
@@ -651,6 +965,7 @@ impl Game {
                     service: sv.id,
                     x,
                     y,
+                    z,
                     price: sv.price,
                 });
             }
@@ -703,10 +1018,11 @@ impl Game {
         let ph = &self.rs.phases[self.phase];
         let mut cells = Vec::new();
         for (p, &c) in self.cell_of.iter().enumerate() {
-            let (x, y) = self.xy(c);
+            let (x, y, z) = self.xyz(c);
             cells.push(CellView {
                 x,
                 y,
+                z,
                 room: self.rs.rooms[self.room[c].unwrap()].id.clone(),
                 maps: self
                     .gb
@@ -719,11 +1035,12 @@ impl Game {
         let units = (0..self.unit_kind.len())
             .filter(|&u| self.gb.units[u].alive)
             .map(|u| {
-                let (x, y) = self.xy(self.unit_cell[u]);
+                let (x, y, z) = self.xyz(self.unit_cell[u]);
                 let k = &self.rs.units[self.unit_kind[u]];
                 UnitView {
                     x,
                     y,
+                    z,
                     unit: k.id.clone(),
                     model: k.model.clone(),
                     seated: self.seated[u],
@@ -734,12 +1051,13 @@ impl Game {
             .guests
             .iter()
             .map(|g| {
-                let (x, y) = self.xy(g.cell);
+                let (x, y, z) = self.xyz(g.cell);
                 GuestView {
                     id: g.id,
                     kind: self.rs.guests[g.kind].id.clone(),
                     x,
                     y,
+                    z,
                     mood: (g.mood * 100.0).round() / 100.0,
                     purse: g.purse,
                     needs: g.needs.iter().map(|v| v.round()).collect(),
@@ -773,8 +1091,73 @@ impl Game {
             cells,
             units,
             guests,
+            walls: self.wall_views(),
+            mode: self.mode,
+            grid: [self.width, self.height, self.levels],
             stats: self.stats.clone(),
         }
+    }
+
+    /// Inner walls and doors, each on the east or south side of its cell.
+    pub fn wall_views(&self) -> Vec<WallView> {
+        self.walls
+            .iter()
+            .map(|(&(a, b), &door)| {
+                let (x, y, z) = self.xyz(a);
+                let side = if b == a + 1 { Side::E } else { Side::S };
+                WallView {
+                    x,
+                    y,
+                    z,
+                    side,
+                    door,
+                }
+            })
+            .collect()
+    }
+
+    /// Builds a plan at no cost: digs its cells (the entrance stays as it is), then puts up its
+    /// walls and doors and its stairs.
+    fn plan(
+        &mut self,
+        cells: &[PlanCell],
+        walls: &[PlanWall],
+        stairs: &[PlanAt],
+    ) -> Result<(), String> {
+        let entrance = self.entrance();
+        for c in cells {
+            let cell = self.at(c.x, c.y, c.z)?;
+            let r = self
+                .rs
+                .room(&c.room)
+                .ok_or_else(|| format!("there is no room {:?}", c.room))?;
+            if cell != entrance && self.room[cell].is_none() {
+                self.open_cell(cell, r);
+            }
+        }
+        for w in walls {
+            let (a, b) = self.inner_edge(w.x, w.y, w.z, w.side)?;
+            self.set_wall(a, b, w.door);
+        }
+        if !stairs.is_empty() {
+            let k = self
+                .rs
+                .units
+                .iter()
+                .position(|u| u.stairs)
+                .ok_or("this ruleset has no stairs")?;
+            for s in stairs {
+                let cell = self.at(s.x, s.y, s.z)?;
+                if self.room[cell].is_none()
+                    || self.unit_at[cell].is_some()
+                    || self.next_level(cell).is_none()
+                {
+                    return Err(format!("stairs cannot stand at {} {} {}", s.x, s.y, s.z));
+                }
+                self.put_unit(cell, k);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -782,6 +1165,7 @@ impl Game {
 pub struct CellView {
     pub x: usize,
     pub y: usize,
+    pub z: usize,
     pub room: String,
     /// Each layer's value here, in the order of `Snapshot::layers`.
     pub maps: Vec<f64>,
@@ -791,6 +1175,7 @@ pub struct CellView {
 pub struct UnitView {
     pub x: usize,
     pub y: usize,
+    pub z: usize,
     pub unit: String,
     pub model: String,
     pub seated: u32,
@@ -802,6 +1187,7 @@ pub struct GuestView {
     pub kind: String,
     pub x: usize,
     pub y: usize,
+    pub z: usize,
     pub mood: f64,
     pub purse: f64,
     pub needs: Vec<f64>,
@@ -821,5 +1207,18 @@ pub struct Snapshot {
     pub cells: Vec<CellView>,
     pub units: Vec<UnitView>,
     pub guests: Vec<GuestView>,
+    pub walls: Vec<WallView>,
+    pub mode: Mode,
+    /// Width, height and levels of this game's grid.
+    pub grid: [usize; 3],
     pub stats: Stats,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct WallView {
+    pub x: usize,
+    pub y: usize,
+    pub z: usize,
+    pub side: Side,
+    pub door: bool,
 }
