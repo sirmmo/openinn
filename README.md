@@ -13,7 +13,7 @@ between them is plain [GlassBox](https://crates.io/crates/glassbox), the same ru
 The first ruleset is **The Gilded Mimic** (`games/dungeon-inn`): an inn on the third level of
 the dungeon, for adventurers, dwarf miners, wizards and goblin peddlers on their way down.
 
-**Play:** https://sirmmo.github.io/openinn/
+**Play:** https://ingmmo.com/openinn/
 
 ## How a ruleset works
 
