@@ -1,5 +1,6 @@
-# The Slow Orbit's contracts. Credits are the ring's own (inn.inn: `share Credits`); Served and
-# Standing come from the ring (`feed`); refits and the hail act on it through inn.inn's `idle`.
+# The Slow Orbit's contracts. Credits are the ring's own (inn.inn: `share Credits`); Served,
+# Standing, Charts and Favours come from the ring (`feed`); refits, licences, the hail and the gala
+# act on it through inn.inn's `idle` block.
 
 resource Credits
     text The ring's account: the lounge's takings, and what its contracts bring in.
@@ -16,11 +17,30 @@ resource Standing
     view color #5ee0c0
 end
 
+resource Charts
+    text Star charts the guests trade you for a chart tour, a sim run or an hour at the viewport; survey probes bring more. Held charts make the sim league better.
+    show if ever(Charts) > 0
+    view color #9a8cff
+end
+
+resource Favours
+    text What the belt owes you: one for every rad flush and every vigil, half for a steam soak. Medevac skiffs earn more.
+    show if ever(Favours) > 0
+    view color #e86a8a
+end
+
 resource Charters
     text Kept when you sell the ring: every charter makes the contracts 10% faster and prices 5% higher.
     show if Charters > 0
     boost all 1 + $charter_boost * Charters
     view color #9fc3ff
+end
+
+resource Shares
+    text Consortium shares, kept through everything: each makes the contracts a quarter faster and prices 10% higher.
+    show if Shares > 0
+    boost all 1 + $share_boost * Shares
+    view color #f2c94c
 end
 
 # ---------- contracts ----------
@@ -36,6 +56,18 @@ rule haul
     out Credits $drone_rate
 end
 
+generator Tug
+    label Ore tug
+    text Tows ore from the belt to the smelters: more credits than a drone.
+    cost Credits $tug_cost * 1.17 ^ owned
+    show if Drone >= 3
+end
+
+rule tow
+    appliesTo Tug
+    out Credits $tug_rate
+end
+
 generator Relay
     label Comms relay
     text Advertises the ring down the shipping lanes: standing.
@@ -48,6 +80,32 @@ rule advertise
     out Standing $relay_rate
 end
 
+generator Probe
+    label Survey probe
+    text Charts the belt's drift: star charts, slowly.
+    cost Credits $probe_cost * 1.22 ^ owned
+    show if ever(Charts) >= 2
+end
+
+rule survey_drift
+    appliesTo Probe
+    out Charts $probe_rate
+end
+
+generator Skiff
+    label Medevac skiff
+    text Fetches the injured off the claims: favours, and a fee.
+    cost Credits $skiff_cost * 1.2 ^ owned
+    cost Favours 3 * 1.25 ^ owned
+    show if ever(Favours) >= 3
+end
+
+rule evacuate
+    appliesTo Skiff
+    out Favours $skiff_rate
+    out Credits 0.3
+end
+
 generator Claim
     label Mining claim
     text A share in a belt claim: a lot of credits.
@@ -58,6 +116,31 @@ end
 rule mine
     appliesTo Claim
     out Credits $claim_rate
+end
+
+generator Guild
+    label Survey guild seat
+    text A seat on the survey guild, bought with charts: standing down every lane.
+    cost Charts 15 * 1.3 ^ owned
+    show if ever(Charts) >= 10
+end
+
+rule sit
+    appliesTo Guild
+    out Standing $guild_rate
+end
+
+generator Depot
+    label Fuel depot
+    text A refuelling depot of the ring's own, built on favours: a fortune in credits.
+    cost Credits $depot_cost * 1.25 ^ owned
+    cost Favours 20 * 1.3 ^ owned
+    show if Claim >= 3
+end
+
+rule refuel
+    appliesTo Depot
+    out Credits $depot_rate
 end
 
 # ---------- refits (inn.inn says what they do to the ring) ----------
@@ -89,11 +172,11 @@ upgrade Couches
     show if ever(Served) >= 20
 end
 
-upgrade Flavours
-    label Flavour cartridges
-    text Printed meals sell for 40% more.
-    cost Credits 200
-    show if ever(Served) >= 30
+upgrade NutrientFilm
+    label Nutrient film
+    text Fresh greens bowls sell for 30% more.
+    cost Credits 140
+    show if ever(Served) >= 20
 end
 
 upgrade Firmware
@@ -101,6 +184,119 @@ upgrade Firmware
     text Recharges sell for half as much again.
     cost Credits 160
     show if ever(Served) >= 25
+end
+
+upgrade StoutRecipe
+    label Tessel stout recipe
+    text You can fit a stout synth in the galley or the hold: booths pour stout.
+    cost Credits 220
+    show if ever(Served) >= 25
+end
+
+upgrade Flavours
+    label Flavour cartridges
+    text Printed meals sell for 40% more.
+    cost Credits 200
+    show if ever(Served) >= 30
+end
+
+upgrade Taproom
+    label Long-bar plumbing
+    text Long bars pour faster still (their combo works half as well again).
+    cost Credits 180
+    show if ever(Served) >= 30
+end
+
+upgrade Baffles
+    label Acoustic baffles
+    text Quiet berths rest guests twice as well.
+    cost Credits 160
+    show if ever(Served) >= 35
+end
+
+upgrade Fernseed
+    label Fern seed bank
+    text Garden tables, homely cabins, fern steam and fresh-air lounges work half as well again.
+    cost Credits 300
+    show if ever(Served) >= 40
+end
+
+upgrade Scoreboard
+    label High-score board
+    text Arcade rows work twice as well: dearer, and louder.
+    cost Credits 150
+    cost Charts 5
+    show if ever(Charts) >= 3
+end
+
+upgrade Lenses
+    label Viewport lenses
+    text Window seats work twice as well; an hour at the viewport sells for half as much again.
+    cost Credits 200
+    cost Charts 8
+    show if ever(Charts) >= 4
+end
+
+upgrade SimLicence
+    label Sim-rig licence
+    text You can fit sim rigs in the sim den.
+    cost Credits 260
+    cost Charts 5
+    show if ever(Charts) >= 2
+end
+
+upgrade League
+    label Sim league charter
+    text Two sim rigs side by side with a screen near make a sim league (once the rating reaches 40). The more charts you hold, the better it works.
+    cost Credits 2000
+    cost Charts 25
+    show if SimLicence
+end
+
+upgrade Exchange
+    label Chart exchange
+    text Every chart you hold makes every price 0.2% higher, up to a fifth.
+    cost Charts 30
+    show if ever(Charts) >= 15
+end
+
+upgrade Plumbing
+    label Steam plumbing
+    text You can fit steam tubs on the wash deck (they need a water reclaimer).
+    cost Credits 200
+    cost Favours 2
+    show if ever(Favours) >= 1
+end
+
+upgrade Rite
+    label Rite of the drift
+    text You can build a chapel of the drift, for the pilgrims' vigils.
+    cost Credits 150
+    cost Favours 6
+    show if ever(Favours) >= 3
+end
+
+upgrade Protocol
+    label Triage protocol
+    text Triage bays work half as well again; rad flushes sell for a quarter more.
+    cost Credits 250
+    cost Favours 6
+    show if ever(Favours) >= 4
+end
+
+upgrade Accord
+    label Hospitality accord
+    text Guests wait 30% longer before they give up.
+    cost Credits 1500
+    cost Favours 15
+    show if ever(Favours) >= 10
+end
+
+upgrade Chain
+    label Lane beacon chain
+    text Guests come a quarter as often again (on top of the beacon).
+    cost Credits 5000
+    show if Beacon
 end
 
 upgrade Swarm
@@ -112,13 +308,57 @@ upgrade Swarm
     boost Drone 2
 end
 
-# ---------- the hail ----------
+upgrade Convoys
+    label Tug convoys
+    text Ore tugs tow twice as much.
+    cost Credits 8000
+    if Tug >= 5
+    show if Tug >= 3
+    boost Tug 2
+end
+
+upgrade Deepscan
+    label Deep-scan probes
+    text Survey probes chart twice as fast.
+    cost Credits 4000
+    cost Charts 40
+    show if Probe >= 2
+    boost Probe 2
+end
+
+upgrade Network
+    label Medevac network
+    text Medevac skiffs earn twice the favours.
+    cost Credits 5000
+    cost Favours 25
+    show if Skiff >= 2
+    boost evacuate 2
+end
+
+# ---------- what you can do ----------
 
 action hail
     label Broadcast a hail
     text Twice as many ships dock for the next 30 seconds of station night.
     cooldown 120
     lasts 30
+end
+
+action gala
+    label Host a gala
+    text Call in four favours: for the next 45 seconds, everything on the ring sells for a quarter more.
+    in Favours 4
+    cooldown 300
+    lasts 45
+end
+
+action sell_survey
+    label Sell a survey
+    text Sell ten charts to a prospector: credits, more for every survey probe you run.
+    in Charts 10
+    out Credits 100 + 40 * Probe
+    cooldown 180
+    show if ever(Charts) >= 10
 end
 
 # ---------- milestones ----------
@@ -139,11 +379,69 @@ milestone lanes
     view kind level
 end
 
-# ---------- selling the ring ----------
+milestone regulars
+    label Two hundred served
+    text The ring has regulars: credits from every contract flow a quarter faster.
+    if ever(Served) >= 200
+    boost Credits 1.25
+    view kind level
+end
+
+milestone cartographer
+    label Chart-maker
+    text Twenty-five charts traded: survey probes chart twice as fast.
+    if ever(Charts) >= 25
+    boost Probe 2
+    view kind level
+end
+
+milestone owed
+    label Owed by the belt
+    text Twenty favours owed: medevac skiffs earn twice the favours.
+    if ever(Favours) >= 20
+    boost Skiff 2
+    view kind level
+end
+
+milestone fleet
+    label A fleet of drones
+    text Fifteen cargo drones: they haul half as much again.
+    if Drone >= 15
+    boost Drone 1.5
+    view kind level
+end
+
+milestone tycoon
+    label Belt tycoon
+    text Fifty thousand credits made: everything runs a quarter faster.
+    if ever(Credits) >= 50000
+    boost all 1.25
+    view kind level
+end
+
+milestone dynasty
+    label A consortium of your own
+    text You floated the consortium: everything runs half as fast again, for good.
+    if consortium >= 1
+    boost all 1.5
+    view kind level
+end
+
+# ---------- selling up ----------
 
 prestige charter
     label Sell the ring's charter
-    text Sell the charter and fit out a bigger ring: the building, the credits and the contracts start over; charters stay.
-    gain Charters floor(sqrt(total(Standing) / 5))
-    keep Charters
+    text Sell the charter and fit out a bigger ring: the building and the credits start over; charters (and shares) stay, and some of the contracts move with you (of each kind, $carry_base and one more for every charter).
+    gain Charters floor(sqrt(total(Standing) / 10))
+    keep Charters Shares
+    carry Drone Tug Relay Probe Skiff Claim Guild Depot max $carry_base + Charters
+end
+
+prestige consortium
+    label Float a belt consortium
+    text Pool your charters into a consortium of refuelling rings: everything starts over, charters too, for shares that stay for good (one for every five charters).
+    gain Shares floor(Charters / 5)
+    if Charters >= 10
+    show if Charters >= 5
+    keep Shares
 end

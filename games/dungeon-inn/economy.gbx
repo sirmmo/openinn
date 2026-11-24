@@ -1,6 +1,6 @@
 # The Gilded Mimic's economy, in plain GlassBox. The units are declared in inn.inn.
-# Ale, Stew and Provisions are global: the inn's stores, kept in its account with Gold.
-# Night is set by the phases (1 while the doors are open).
+# Ale, Stew, Provisions, Tonic, HotWater and Mushrooms are global: the inn's stores, kept in its
+# account with Gold. Night is set by the phases (1 while the doors are open).
 
 # The keg rack taps a barrel when the bar runs low; every mug costs the inn a little gold.
 unitRule tap
@@ -45,4 +45,94 @@ unitRule scrub
     global Night atLeast 1
     global Gold in 0.05
     map Dirt in 3 radius 2
+end
+
+# ---------- decor: cheer, hush and damp ----------
+
+# A candle stand: cheer and a little warmth round it, always.
+unitRule glow
+    appliesTo candles
+    map Cheer out 0.6 radius 1
+    map Heat out 0.2
+end
+
+# A guild banner: a little cheer, further.
+unitRule flutter
+    appliesTo banner
+    map Cheer out 0.3 radius 2
+end
+
+# Trophies and a hoard: something to point at.
+unitRule boast
+    appliesTo trophy hoard
+    map Cheer out 0.4 radius 1
+end
+
+# Books soak up the noise round them.
+unitRule hush
+    appliesTo bookcase
+    map Noise in 1 radius 1
+end
+
+# The cistern drips, day and night.
+unitRule drip
+    appliesTo cistern
+    map Damp out 0.6 radius 1
+end
+
+# A tame mimic eats a little of the provisions and, fed, purrs (in its way).
+unitRule purr
+    appliesTo mimic
+    global Night atLeast 1
+    global Provisions in 0.05
+    map Cheer out 1.2 radius 2
+    map Noise out 0.3
+end
+
+# ---------- production chains ----------
+
+# Mushroom beds grow where the damp is 2 or more: one mushroom every four ticks.
+unitRule grow
+    appliesTo mushbed
+    rate 4
+    map Damp atLeast 2
+    global Mushrooms less 16
+    global Mushrooms out 1
+end
+
+# The still turns mushrooms into tonic for the bar while the doors are open, for a little gold.
+unitRule distil
+    appliesTo still
+    rate 3
+    global Night atLeast 1
+    global Tonic less 6
+    global Mushrooms in 2
+    global Gold in 0.5
+    global Tonic out 1
+    map Heat out 1 radius 1
+end
+
+# The boiler heats water for the tubs, and steams up the room.
+unitRule boil
+    appliesTo boiler
+    rate 2
+    global Night atLeast 1
+    global HotWater less 8
+    global Gold in 0.3
+    global HotWater out 2
+    map Damp out 0.5 radius 1
+end
+
+# The boiler's fire burns all night, hot water wanted or not.
+unitRule firebox
+    appliesTo boiler
+    global Night atLeast 1
+    map Heat out 1 radius 1
+end
+
+# A tub in use steams a little.
+unitRule steam
+    appliesTo tub
+    global Night atLeast 1
+    map Damp out 0.2 radius 1
 end

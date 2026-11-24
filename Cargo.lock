@@ -45,7 +45,7 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 [[package]]
 name = "openidle"
 version = "0.1.0"
-source = "git+https://github.com/sirmmo/openidle?rev=5072d5fa411e13f75cb454c024d1502f5dba3f5a#5072d5fa411e13f75cb454c024d1502f5dba3f5a"
+source = "git+https://github.com/sirmmo/openidle?rev=25b62a1a9d59d0a2bfb17a14c44eb089cdd3a433#25b62a1a9d59d0a2bfb17a14c44eb089cdd3a433"
 dependencies = [
  "serde",
  "serde_json",

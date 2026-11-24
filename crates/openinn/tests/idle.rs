@@ -33,6 +33,18 @@ fn ledger(g: &Game, res: &str) -> f64 {
         .map_or_else(|| r["amount"].as_f64().unwrap(), |s| s.parse().unwrap())
 }
 
+/// How many of a generator the ledger has, from the view.
+fn owned(g: &Game, id: &str) -> f64 {
+    let v = g.snapshot().idle.unwrap();
+    let x = v["generators"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["id"] == id)
+        .unwrap();
+    x["owned"].as_f64().unwrap()
+}
+
 #[test]
 fn the_ledger_shares_the_gold_and_earns_while_you_wait() {
     let mut g = game("purse");
@@ -124,6 +136,15 @@ fn selling_the_inn_starts_the_building_over_and_keeps_the_legend() {
     // The season is over, but the ledger still works: sell the inn.
     let renown = ledger(&g, "Renown");
     assert!(renown >= 5.0, "{renown}");
+    // Hire more peddlers than may follow (waiting for the gold when it runs out): only
+    // `carry_base` (2) and one a legend follow to the new inn.
+    let cap = 2.0 + (renown / 5.0).sqrt().floor();
+    while owned(&g, "Peddler") < cap + 3.0 {
+        if g.apply(buy("Peddler")).is_err() {
+            g.apply(Command::Wait { ms: 60_000 }).unwrap();
+        }
+    }
+    let hired = owned(&g, "Peddler");
     let events = g
         .apply(idle(json!({ "cmd": "prestige", "id": "sell" })))
         .unwrap();
@@ -138,6 +159,9 @@ fn selling_the_inn_starts_the_building_over_and_keeps_the_legend() {
     assert_eq!(g.money(), 320.0);
     let legend = ledger(&g, "Legend");
     assert_eq!(legend, (renown / 5.0).sqrt().floor());
+    assert_eq!(owned(&g, "Peddler"), 2.0 + legend);
+    assert!(hired > 2.0 + legend);
+    assert_eq!(owned(&g, "Bard"), 0.0);
     // Every price is 5% higher per legend.
     assert_eq!(
         g.price(0),

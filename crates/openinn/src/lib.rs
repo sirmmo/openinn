@@ -17,8 +17,8 @@ mod sim;
 
 pub use glassbox::Error;
 pub use script::{
-    load, load_dir, GuestDef, InnDef, NeedDef, PhaseDef, RoomDef, Ruleset, ServiceDef, UnitKind,
-    HOST_KINDS,
+    load, load_dir, ComboDef, FinishDef, GuestDef, InnDef, NeedDef, PhaseDef, RoomDef, Ruleset,
+    ServiceDef, UnitKind, HOST_KINDS,
 };
 pub use sim::{
     CellView, Command, Event, Game, GuestView, Mode, PlanAt, PlanCell, PlanWall, Side, Snapshot,

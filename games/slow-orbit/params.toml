@@ -1,9 +1,20 @@
 # The contracts' numbers, used as $name in contracts.idle.
 growth = 1.15
 drone_cost = 30
-drone_rate = 0.25      # credits a second per cargo drone
+drone_rate = 0.15      # credits a second per cargo drone
+tug_cost = 220
+tug_rate = 0.7         # credits a second per ore tug
 relay_cost = 70
-relay_rate = 0.02      # standing a second per relay
-claim_cost = 600
+relay_rate = 0.008     # standing a second per relay
+claim_cost = 900
 claim_rate = 2.5
+probe_cost = 150
+probe_rate = 0.01      # charts a second per survey probe
+skiff_cost = 400
+skiff_rate = 0.008     # favours a second per medevac skiff
+guild_rate = 0.02      # standing a second per survey guild seat
+depot_cost = 8000
+depot_rate = 10
 charter_boost = 0.1
+share_boost = 0.25
+carry_base = 2         # selling the charter: of each kind of contract, this many move with you, plus one a charter

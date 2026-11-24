@@ -2,7 +2,7 @@
 # It runs through the day, through pauses and while you are away; at night, with the inn's
 # ticks. inn.inn's `idle` block says how it meets the inn.
 name = "The Gilded Mimic's ledger"
-description = "Peddlers, bards and a fence work for the inn while you are away; upgrades make the inn better; sell it for legend."
+description = "Peddlers, bards, scribes and acolytes work for the inn while you are away; upgrades make the inn better and open new rooms; sell it for legend, and give up legend for a charter."
 scripts = ["ledger.idle"]
 tick = 1              # seconds
 offline_max = 28800   # eight hours of progress for time away

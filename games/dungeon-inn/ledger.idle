@@ -1,5 +1,6 @@
-# The Gilded Mimic's ledger. Gold is the inn's own (inn.inn: `share Gold`); Served and Renown
-# come from the inn (`feed`); upgrades and the bell act on the inn through inn.inn's `idle` block.
+# The Gilded Mimic's ledger. Gold and Mushrooms are the inn's own (inn.inn: `share`); Served,
+# Renown, Lore and Faith come from the inn (`feed`); upgrades, milestones and actions act on the
+# inn through inn.inn's `idle` block.
 
 resource Gold
     text The inn's purse: the bar's takings, and what the ledger's people bring in.
@@ -12,8 +13,29 @@ resource Served
 end
 
 resource Renown
-    text Word of the inn in the towns above: one for every guest who leaves happy.
+    text Word of the inn in the towns above: one for every guest who leaves happy. Word cannot run
+    text ahead of the inn: it holds at most 50, and 2 more for every guest served this run.
+    cap $renown_cap + $renown_per_guest * Served
     view color #b78fd9
+end
+
+resource Lore
+    text Tales of the levels below, written down: one for every quiet read, two for an evening over the maps.
+    show if ever(Lore) > 0
+    view color #8fb3d9
+end
+
+resource Faith
+    text The shrine's standing: one for every blessing, more where candles burn round the altar.
+    show if ever(Faith) > 0
+    view color #f4e3a1
+end
+
+resource Mushrooms
+    text Cave mushrooms in the inn's stores, for the still.
+    show if ever(Mushrooms) > 0
+    cap $mushroom_cap
+    view color #a3c47a
 end
 
 resource Legend
@@ -21,6 +43,13 @@ resource Legend
     show if Legend > 0
     boost all 1 + $legend_boost * Legend
     view color #ffd27a
+end
+
+resource Charter
+    text A guild's charter, kept through everything: the ledger half as fast again, prices and guests a tenth more, for each.
+    show if Charter > 0
+    boost all 1 + $charter_boost * Charter
+    view color #e07a5f
 end
 
 # ---------- people who work for the inn ----------
@@ -37,7 +66,7 @@ end
 
 generator Bard
     text Sings of the inn in the towns above: renown.
-    cost Gold $bard_cost * 1.2 ^ owned
+    cost Gold $bard_cost * $bard_growth ^ owned
     show if ever(Renown) >= 3
 end
 
@@ -56,6 +85,68 @@ end
 rule fence
     appliesTo Fence
     out Gold $fence_rate
+end
+
+generator Forager
+    label Mushroom forager
+    text Brings cave mushrooms to the inn's stores, for the still, here or away.
+    cost Gold $forager_cost * 1.2 ^ owned
+    show if ever(Served) >= 20
+end
+
+rule forage
+    appliesTo Forager
+    out Mushrooms $forager_rate
+end
+
+generator Scribe
+    text Turns the inn's lore into guidebooks for the parties upstairs: gold and a little renown, while the lore lasts.
+    cost Gold $scribe_cost * 1.2 ^ owned
+    show if ever(Lore) >= 3
+end
+
+rule copy
+    appliesTo Scribe
+    in Lore $scribe_lore
+    out Gold $scribe_rate
+    out Renown 0.003
+end
+
+generator Acolyte
+    text Keeps the shrine's candles lit while you are away: faith, and a little renown.
+    cost Gold $acolyte_cost * 1.2 ^ owned
+    show if ever(Faith) >= 3
+end
+
+rule tend
+    appliesTo Acolyte
+    out Faith $acolyte_rate
+    out Renown 0.002
+end
+
+generator Guide
+    label Stair guide
+    text Leads parties down from the level above: every guide brings 3% more guests, and some renown.
+    cost Gold $guide_cost * 1.22 ^ owned
+    max 20
+    show if ever(Served) >= 40
+end
+
+rule guide
+    appliesTo Guide
+    out Renown 0.01
+end
+
+generator Caravan
+    label Supply caravan
+    text Trades the inn's name in the towns above: a great deal of gold.
+    cost Gold $caravan_cost * 1.35 ^ owned
+    show if Fence >= 3
+end
+
+rule caravan
+    appliesTo Caravan
+    out Gold $caravan_rate
 end
 
 # ---------- upgrades (inn.inn says what they do to the inn) ----------
@@ -103,6 +194,143 @@ upgrade Apprentice
     boost Peddler 2
 end
 
+upgrade Hearthsong
+    label Songs by the fire
+    text Bards sing half as well again, and a snug corner by the hearth works twice as well.
+    cost Gold 180
+    show if Bard >= 2
+    boost Bard 1.5
+end
+
+upgrade Copper
+    label Copper coils
+    text Mushroom tonic sells for half as much again.
+    cost Gold 220
+    show if ever(Served) >= 30
+end
+
+upgrade HouseRules
+    label House rules
+    text Dice and cards cost 30% more.
+    cost Gold 250
+    show if ever(Served) >= 40
+end
+
+upgrade Bathsalts
+    label Salts from the deep springs
+    text Soaks sell for 30% more, and a steam room works twice as well.
+    cost Gold 600
+    show if ever(Served) >= 50
+end
+
+upgrade Packmules
+    label Pack mules
+    text Foragers bring twice as many mushrooms.
+    cost Gold 300
+    if Forager >= 3
+    show if Forager >= 1
+    boost Forager 2
+end
+
+upgrade Lanterns
+    label Lanterns on the stair
+    text Guests wait a quarter as long again before they give up (on top of the benches).
+    cost Gold 800
+    show if Benches
+end
+
+upgrade Cartography
+    label Surveyors' maps
+    text You can build map tables in the map room and the trophy hall.
+    cost Gold 250
+    cost Lore 10
+    show if ever(Lore) >= 5
+end
+
+upgrade Tithes
+    label A tithe box
+    text Two pews by an altar make it pay half as much again (the Full pews combo).
+    cost Gold 200
+    cost Faith 10
+    show if ever(Faith) >= 5
+end
+
+upgrade Relics
+    label Relics from the lower halls
+    text Blessings sell for half as much again, and candles round the altar work half as well again.
+    cost Gold 2000
+    cost Faith 25
+    show if Tithes
+end
+
+upgrade Criers
+    label Criers in the towns above
+    text Guests come a quarter as often again (on top of the sign).
+    cost Gold 1500
+    cost Renown 15
+    show if Signboard
+end
+
+upgrade Strongroom
+    label Iron doors
+    text You can dig a trophy hall.
+    cost Gold 1200
+    show if ever(Served) >= 80
+end
+
+upgrade MimicTamer
+    label The mimic-tamer's whistle
+    text You can keep a tame mimic, in the trophy hall or the taproom.
+    cost Gold 2500
+    cost Renown 20
+    show if Strongroom
+end
+
+upgrade GildedCollar
+    label A gilded collar
+    text The mimic by the bar and the mimic on its hoard work twice as well.
+    cost Gold 8000
+    cost Renown 40
+    show if MimicTamer
+end
+
+upgrade Archive
+    label An archive of the deeps
+    text Scribes work twice as fast, and a hushed corner works half as well again.
+    cost Gold 3000
+    cost Lore 30
+    if Scribe >= 3
+    show if Scribe >= 1
+    boost Scribe 2
+end
+
+upgrade Choir
+    label A choir of acolytes
+    text Acolytes work twice as well.
+    cost Gold 2500
+    cost Faith 30
+    if Acolyte >= 3
+    show if Acolyte >= 1
+    boost Acolyte 2
+end
+
+upgrade Guildhall
+    label A guild's patronage
+    text Every price in the inn is a tenth higher.
+    cost Gold 15000
+    cost Renown 60
+    show if ever(Renown) >= 40
+end
+
+upgrade Caravanserai
+    label A caravanserai upstairs
+    text Caravans bring twice as much.
+    cost Gold 60000
+    if Caravan >= 5
+    show if Caravan >= 2
+    boost Caravan 2
+end
+
 # ---------- the bell ----------
 
 action bell
@@ -110,6 +338,23 @@ action bell
     text Twice as many guests for the next 30 seconds of the night.
     cooldown 120
     lasts 30
+end
+
+action lastorders
+    label Call last orders
+    text Every price a quarter higher for the next 30 seconds of the night.
+    cooldown 300
+    lasts 30
+    show if ever(Served) >= 30
+end
+
+action sermon
+    label Preach at the shrine
+    text Spend 5 faith for 3 renown.
+    in Faith 5
+    out Renown 3
+    cooldown 600
+    show if ever(Faith) >= 5
 end
 
 # ---------- milestones ----------
@@ -130,11 +375,60 @@ milestone famed
     view kind level
 end
 
+milestone busy
+    label Five hundred served
+    text The ledger runs a quarter faster again.
+    if ever(Served) >= 500
+    boost all 1.25
+    view kind level
+end
+
+milestone learned
+    label A learned house
+    text Fifty lore: scribes work half as well again.
+    if ever(Lore) >= 50
+    boost Scribe 1.5
+    view kind level
+end
+
+milestone blessed
+    label A blessed house
+    text Forty faith: acolytes work half as well again, and an altar in a shrine is blessed (the A blessed house combo).
+    if ever(Faith) >= 40
+    boost Acolyte 1.5
+    view kind level
+end
+
+milestone sung
+    label Sung in every hall
+    text A hundred and fifty renown: guides work twice as well.
+    if ever(Renown) >= 150
+    boost Guide 2
+    view kind level
+end
+
+milestone coffers
+    label Full coffers
+    text Fifty thousand gold made: everything in the ledger costs a tenth less.
+    if ever(Gold) >= 50000
+    discount all 0.9
+    view kind level
+end
+
 # ---------- selling the inn ----------
 
 prestige sell
     label Sell the inn
-    text Sell up and dig a grander inn: the building, the gold and the ledger's people start over; legend stays.
+    text Sell up and dig a grander inn: the building and the gold start over; legend stays, and some of the ledger's people follow you (of each kind, $carry_base and one more for every legend).
     gain Legend floor(sqrt(total(Renown) / 5))
-    keep Legend
+    keep Legend Charter
+    carry Peddler Bard Fence Forager Scribe Acolyte Guide Caravan max $carry_base + Legend
+end
+
+prestige charter
+    label Charter a guild
+    text Give up the inn and its legend for a guild's charter: everything starts over, legend too; the charter stays for good.
+    gain Charter floor(sqrt(Legend / 25))
+    keep Charter
+    show if ever(Legend) >= 15
 end

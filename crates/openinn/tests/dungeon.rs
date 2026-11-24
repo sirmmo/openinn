@@ -25,10 +25,12 @@ fn the_dungeon_inn_loads() {
     let rs = dungeon();
     assert_eq!(rs.inn.name, "The Gilded Mimic");
     assert_eq!(rs.phases.len(), 2);
-    assert_eq!(rs.guests.len(), 4);
+    assert_eq!(rs.guests.len(), 7);
+    assert_eq!(rs.rooms.len(), 11);
+    assert!(rs.combos.len() >= 12, "{} combos", rs.combos.len());
     assert_eq!(rs.rooms[rs.room("taproom").unwrap()].colour, "#b5734a");
     assert!(rs.warnings.is_empty(), "{:?}", rs.warnings);
-    assert_eq!(rs.rules.unit_rules.len(), 5);
+    assert_eq!(rs.rules.unit_rules.len(), 16);
 }
 
 #[test]

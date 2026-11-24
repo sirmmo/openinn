@@ -35,7 +35,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: flex; align-items: center; gap: 16px; padding: 6px 14px 8px; flex-wrap: wrap; justify-content: center;
   max-width: calc(100vw - 140px);
 }
-#top .name { font: 900 18px Cinzel, serif; }
+#top .name { font: 900 18px Cinzel, serif; background: none; border: 0; padding: 0; border-bottom: 1.5px dashed transparent; }
+#top .name:hover { border-bottom-color: var(--muted); }
 #top .phase { color: var(--muted); }
 #top .phase b { color: var(--ink); }
 #top .stats { display: flex; gap: 12px; }
@@ -160,3 +161,34 @@ kbd { font: 600 12px ui-monospace, monospace; border: 1.5px solid var(--ink); bo
 #ledger .miles { font-size: 12.5px; color: var(--muted); margin: 2px 0 6px; }
 #ledger .miles b { color: var(--ink); }
 button.tool.locked .n::after { content: ' 🔒'; font-size: 11px; }
+
+/* Furnish: rooms to filter by, the turn and remove tools */
+#tools .grid.two { margin-top: 6px; }
+#unitRooms { width: 100%; margin: -2px 0 6px; padding: 3px 4px; border: 1.5px solid var(--ink); border-radius: 7px; background: var(--paper2); font: 600 12.5px Fredoka, sans-serif; color: var(--ink); }
+button.tool .gem { font-style: normal; color: #b8860b; font-size: 11px; white-space: nowrap; }
+
+/* Walls, floors and combos fold away */
+#tools details { margin-top: 8px; border-top: 1.5px solid var(--paper2); padding-top: 6px; }
+#tools summary { cursor: pointer; font: 700 14px Cinzel, serif; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); list-style: none; }
+#tools summary::-webkit-details-marker { display: none; }
+#tools summary::before { content: '▸ '; }
+#tools details[open] summary::before { content: '▾ '; }
+#tools details[open] summary { margin-bottom: 6px; }
+#comboCount { font: 600 12px Fredoka, sans-serif; letter-spacing: 0; text-transform: none; }
+#tools .hint { font-size: 11.5px; color: var(--muted); margin: 0 0 6px; }
+.combo { padding: 4px 6px; margin-bottom: 4px; border-radius: 7px; background: var(--paper2); font-size: 12px; line-height: 1.25; }
+.combo b { font-size: 12.5px; }
+.combo .w, .combo .t { display: block; color: var(--muted); font-size: 11.5px; }
+.combo .t { color: var(--ink); }
+.combo.on { background: #fbe3a2; box-shadow: inset 0 0 0 1.5px #c9971f; }
+.combo.on b { color: #7a5200; }
+.combo.locked { opacity: 0.6; }
+.combo .k { font-weight: 700; }
+#openDoors { margin-top: 10px; }
+
+/* What is under the pointer */
+#tip {
+  position: fixed; pointer-events: none; z-index: 6; padding: 4px 8px; max-width: 220px;
+  background: var(--paper); border: 1.5px solid var(--ink); border-radius: 7px; font-size: 12.5px; line-height: 1.3;
+}
+#tip .on { color: #7a5200; }

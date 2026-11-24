@@ -81,8 +81,13 @@ room taproom
     colour b5734a              # for maps and the interface
     floor floor_wood_large     # a hint for the view: a model (see Model hints)
     dwellings living-room room *       # Dwellings rooms that import as this (see Dwellings)
+    text Where the drinking is done.   # for the interface (several lines are joined)
+    finish boards floor_wood_large_dark 3 Dark boards   # a floor the player can lay instead
 end
 ```
+
+`finish <id> <model> <cost> <name>` lines are floors a player can lay on a cell of the room
+(the `paint` command), at that cost per cell: a choice of looks, with no effect on the rules.
 
 ## unit
 
@@ -96,8 +101,11 @@ unit bar
     seats 3                    # guests it serves at once
     start Mugs 4               # local stock it is built with
     model bar_straight_A       # a hint for the view (see Model hints)
+    text Three stools and a tap.       # for the interface
 end
 ```
+
+Players can turn a unit a quarter at a time (the `turn` command); it changes only how it looks.
 
 A unit with the line `stairs` joins its cell to the same cell on the next level (below in an
 inn whose levels go `down`, above in one that goes `up`). A cell on another level can be dug
@@ -149,18 +157,47 @@ guest wizard
     patience 20                # ticks they will wait for an urgent need before leaving angry
     need Rest 0.9 50           # need, growth per tick, starting value
     dislike map Noise greater 4 0.01   # each tick where this holds, mood drops by 0.01
+    like map Comfort greater 2 0.004   # ... and here it rises by 0.004
     map Noise out 0.1          # emitted where they stand, every tick
     model character-wizard     # a hint for the view
 end
 ```
 
-Tests (in `if` and `dislike`) are `map <layer> <cmp> <value>` (at the guest's cell, or the
+Tests (in `if`, `like` and `dislike`) are `map <layer> <cmp> <value>` (at the guest's cell, or the
 entrance for `if`) or `global <resource> <cmp> <value>`, with GlassBox's comparisons: `atLeast`,
 `atMost`, `greater`, `less`, `is`.
 
-A guest's mood starts at 0.6, rises by 0.1 with every service, drops by 0.01 for every tick spent
-waiting for something nobody offers, and by their dislikes. A guest leaving with mood `m` moves
+A guest's mood starts at 0.6, rises by 0.1 with every service (and by the `mood` of the combos
+that hold where they were served), drops by 0.01 for every tick spent waiting for something
+nobody offers, and moves with their likes and dislikes. A guest leaving with mood `m` moves
 reputation by `(m - 0.5) × 2 × review`.
+
+## combo
+
+Furniture that works better together. A unit of one of the `at` kinds has the combo while every
+`near` holds (enough units of those kinds within the radius, on the same level, counting
+diagonals), it stands in one of the `in` room kinds (if any are given) and every `if` test holds at
+its cell.
+
+```text
+combo snug
+    name Snug corner
+    text A table by the hearth: stew sells for a fifth more, and guests warm to the place.
+    at table                   # the units that get it
+    near hearth 2              # a hearth within 2 cells
+    near candles,banner 1 2    # and two candles or banners beside it (kinds, radius, how many)
+    in taproom                 # standing in a taproom
+    if map Noise less 6        # tests at the unit's cell, now
+    price 1.2                  # its services cost this much more
+    relief 1.25                # take this much more of the need away
+    time 0.75                  # take this part of the time
+    mood 0.05                  # the guests it serves are this much happier
+    map Comfort out 0.3 radius 1   # emitted every tick while it holds
+end
+```
+
+Combos on the same unit multiply. A guest pays the price at the unit they are served at, combos
+and all; the client shows which combos hold, and where a piece about to be placed would make one.
 
 ## look
 
@@ -219,11 +256,15 @@ idle ledger
     feed Served served         # the idle resource Served gets 1 for every guest served
     feed Renown happy          # ... 1 for every guest who leaves happy
     feed Renown angry -0.5     # ... -0.5 for every angry one (also: arrived, earned, night)
+    feed Faith service heal    # ... 1 for every guest served this service
+    feed Renown combo snug 0.2 # ... 0.2 for every guest served where this combo holds
     price ale 1 + 0.5 * Stout  # the ale's price, times this (an OpenIdle expression)
     price * 1 + 0.05 * Legend  # every price, times this
     arrive (1 + 0.25 * Signboard) * (1 + bell)   # the chance of a guest, times this
     patience 1 + 0.5 * Benches # how long guests wait, times this
     unlock bed Featherbeds     # the unit (or room) can be built only while this holds
+    unlock snug Bellows        # a combo works only while this holds
+    boost snug 1 + Bellows     # the combo's effects, times this (2: twice as strong)
     set Fame Renown            # the inn's global Fame is this, after every step
     restart sell               # taking this prestige sells the inn: the building starts over
 end
@@ -273,8 +314,9 @@ night by night.
 ## Commands
 
 `dig {x, y, z, room}`, `build {x, y, z, unit}`, `remove {x, y, z}` (half the cost back),
-`wall {x, y, z, side, door}` and `unwall {x, y, z, side}` in building phases (`z` is the level,
+`wall {x, y, z, side, door}`, `unwall {x, y, z, side}`, `turn {x, y, z}` and
+`paint {x, y, z, finish}` in building phases (`z` is the level,
 0 by default; `side` is `n`, `e`, `s` or `w`); `next` ends a phase that waits for the player;
 `tick {n}` runs a timed phase on; `eject {guest}` shows a guest the door without a review;
 `plan {cells, walls, stairs}` builds a whole building, free, as a game's first command (an
-import). See [the engine](ENGINE.md).
+import); `rename {name}` gives the inn a name of the player's own. See [the engine](ENGINE.md).

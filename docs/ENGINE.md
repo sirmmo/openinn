@@ -28,6 +28,9 @@ Commands are JSON objects tagged by `do`:
 | `{"do": "remove", "x": 6, "y": 1, "z": 0}` | building phase | Takes the unit away; half its cost comes back |
 | `{"do": "wall", "x": 5, "y": 1, "z": 0, "side": "e", "door": false}` | building phase | Puts a wall (or a door) between two dug cells |
 | `{"do": "unwall", "x": 5, "y": 1, "z": 0, "side": "e"}` | building phase | Takes it down; half its cost comes back |
+| `{"do": "turn", "x": 6, "y": 1, "z": 0}` | building phase | Turns the unit a quarter round, clockwise (free; only its looks) |
+| `{"do": "paint", "x": 6, "y": 1, "z": 0, "finish": "boards"}` | building phase | Lays one of the room's finishes on the cell (`""`: the plain floor back) |
+| `{"do": "rename", "name": "The Rusty Lantern"}` | any time | The inn's own name (`""`: the ruleset's) |
 | `{"do": "plan", "cells": [...], "walls": [...], "stairs": [...]}` | first command only | Builds a whole building at no cost (an import) |
 | `{"do": "idle", "cmd": {"cmd": "buy", "id": "Peddler"}}` | any time | A command for the incremental layer: OpenIdle's `buy`, `act`, `prestige` |
 | `{"do": "wait", "ms": 1000}` | any time | Time passing outside the night: the incremental layer runs on; waits in a row are saved as one |
@@ -41,7 +44,8 @@ Commands are JSON objects tagged by `do`:
 
 * `phase` `{phase, day}`: a phase started.
 * `arrive` `{guest, kind}`: a guest came in.
-* `serve` `{guest, service, x, y, z, price}`: a guest was served at a unit and paid.
+* `serve` `{guest, service, x, y, z, price}`: a guest was served at a unit and paid (the
+  price there: the service's, times the incremental layer's and the unit's combos').
 * `leave` `{guest, kind, mood, why}`: a guest left; `why` is a phrase for the log ("time to
   go", "closing time", "no rest to be had", "shown the door").
 * `over` `{money, reputation, served}`: the season is over.
@@ -53,21 +57,24 @@ Commands are JSON objects tagged by `do`:
 
 `snapshot()` is everything a client needs to draw the inn:
 
-* `day`, `phase`, `phase_tick`, `phase_length` (0: waits for the player), `build`, `over`;
+* `name` (the player's or the ruleset's), `day`, `phase`, `phase_tick`, `phase_length` (0:
+  waits for the player), `build`, `over`;
 * `globals`: `[name, value]` pairs (money, reputation, stores, flags);
 * `layers`: the layer names; every cell carries their values in this order;
-* `cells`: `{x, y, z, room, maps}` for every dug cell;
+* `cells`: `{x, y, z, room, finish, maps}` for every dug cell (`finish`: the floor laid, or null);
 * `walls`: `{x, y, z, side, door}`, each on the `e` or `s` side of its cell;
-* `units`: `{x, y, z, unit, model, seated}`;
+* `units`: `{x, y, z, unit, model, seated, rot, combos}` (`rot`: quarter turns clockwise;
+  `combos`: those that hold for it now);
 * `guests`: `{id, kind, x, y, z, mood, purse, needs, busy}` (`busy` names the service being given);
 * `mode` (`season` or `endless`) and `grid`: `[width, height, levels]`;
 * `idle`: the incremental layer as OpenIdle's view for the inn's player (resources, generators,
   upgrades, actions, milestones, prestiges), with its `offline_max`; `prices`: each service's
-  price now; `locked`: units and rooms not unlocked yet; `run`: how many times the inn was sold;
+  price now (before combos); `locked`: units, rooms and combos not unlocked yet; `run`: how many times the inn was sold;
 * `stats`: `{arrived, served, happy, angry, earned}` for the season.
 
-The ruleset's own `catalog()` lists the inn, phases, layers, rooms, units (with the services
-they offer), needs, services and guests, with their names, costs and model hints, and the
+The ruleset's own `catalog()` lists the inn, phases, layers, rooms (with their finishes), units (with the
+services they offer), needs, services, guests and combos, with their names, texts, costs and
+model hints, and the
 `look` block's lines, so a client can build its menus and draw the inn without knowing the
 ruleset.
 

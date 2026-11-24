@@ -16,7 +16,8 @@ const TICK_MS = 250; // a tick at normal speed
 
 let engine, files, catalog, view, state;
 let look = {}; // the ruleset's look block: words, help and style for the page
-let tool = null; // { kind: 'dig', room } | { kind: 'build', unit } | { kind: 'remove' }
+let tool = null; // { kind: 'dig', room } | { kind: 'build', unit } | { kind: 'remove' } | { kind: 'turn' } | { kind: 'paint', room, finish }
+let unitRoom = ''; // the Furnish list shows units for this room ('' for all)
 let speed = 1;
 let timer = null;
 let selected = null; // guest id
@@ -187,15 +188,22 @@ function setSpeed(s) {
 
 // ---------- HUD ----------
 
+function innName() {
+  return state?.name || catalog.inn.name;
+}
+
 function setupHud() {
-  $('innName').textContent = catalog.inn.name;
-  document.title = `OpenInn: ${catalog.inn.name}`;
+  $('innName').onclick = () => {
+    const name = prompt('Name your inn (empty for its own name):', innName());
+    if (name !== null) send({ do: 'rename', name });
+  };
   document.body.dataset.game = GAME;
   document.querySelector('.stat[title="Gold"]').title = catalog.inn.money;
   document.querySelector('.stat[title="Reputation"]').title = catalog.inn.reputation;
   const digs = $('digButtons');
   for (const r of catalog.rooms) {
     const b = toolButton(r.name, r.cost, `<span class="sw" style="background:${r.colour}"></span>`);
+    b.title = r.text ? `${r.name}: ${r.text}` : r.name;
     b.onclick = () => setTool(tool?.kind === 'dig' && tool.room === r.id ? null : { kind: 'dig', room: r.id }, b);
     b.dataset.cost = r.cost;
     digs.appendChild(b);
@@ -203,15 +211,55 @@ function setupHud() {
   for (const [b, r] of [...digs.children].map((b, i) => [b, catalog.rooms[i]])) b.dataset.room = r.id;
   const units = $('unitButtons');
   for (const u of catalog.units) {
-    const where = u.rooms.map((id) => catalog.rooms.find((r) => r.id === id)?.name).join(', ');
+    const where = u.rooms.map((id) => roomName(id)).join(', ');
     const b = toolButton(u.name, u.cost, '');
-    b.title = `${u.name}: in ${where || 'any room'}${u.seats ? `, seats ${u.seats}` : ''}`;
+    const combos = (catalog.combos || []).filter((c) => c.at.includes(u.id) || c.near.some((n) => n.units.includes(u.id)));
+    b.title = [
+      `${u.name}: in ${where || 'any room'}${u.seats ? `, seats ${u.seats}` : ''}`,
+      u.text,
+      ...combos.map((c) => `✦ ${c.name}: ${comboWhat(c)}`),
+    ].filter(Boolean).join('\n');
+    if (combos.length) b.querySelector('.n').insertAdjacentHTML('beforeend', ' <i class="gem" title="Part of a combo">✦</i>');
     b.onclick = () => setTool(tool?.kind === 'build' && tool.unit === u.id ? null : { kind: 'build', unit: u.id }, b);
     b.dataset.cost = u.cost;
     b.dataset.unit = u.id;
+    b.dataset.rooms = u.rooms.join(' ');
     units.appendChild(b);
   }
+  // Rooms to show the furniture of, when there is a lot of it.
+  const pick = $('unitRooms');
+  const roomsWithUnits = catalog.rooms.filter((r) => catalog.units.some((u) => u.rooms.includes(r.id)));
+  pick.hidden = catalog.units.length <= 10;
+  pick.innerHTML = [{ id: '', name: 'For every room' }, ...roomsWithUnits.map((r) => ({ id: r.id, name: `For the ${r.name.toLowerCase()}` }))]
+    .map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+  pick.onchange = () => { unitRoom = pick.value; filterUnits(); };
+  // Choosing a room to dig shows its furniture.
+  digs.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-room]');
+    if (!b || pick.hidden || !roomsWithUnits.some((r) => r.id === b.dataset.room)) return;
+    pick.value = unitRoom = b.dataset.room;
+    filterUnits();
+  });
   $('removeTool').onclick = () => setTool(tool?.kind === 'remove' ? null : { kind: 'remove' }, $('removeTool'));
+  $('turnTool').onclick = () => setTool(tool?.kind === 'turn' ? null : { kind: 'turn' }, $('turnTool'));
+  // Floors: each room's finishes, and the plain floor back.
+  const floors = $('floorButtons');
+  const finishes = catalog.rooms.flatMap((r) => (r.finishes || []).map((f) => ({ room: r, f })));
+  $('floorsBox').hidden = !finishes.length;
+  for (const { room: r, f } of finishes) {
+    const b = toolButton(f.name, f.cost, `<span class="sw" style="background:${r.colour}"></span>`);
+    b.title = `${f.name}, for the ${r.name.toLowerCase()} (a cell)`;
+    b.onclick = () => setTool(tool?.kind === 'paint' && tool.finish === f.id && tool.room === r.id ? null : { kind: 'paint', room: r.id, finish: f.id }, b);
+    b.dataset.cost = f.cost;
+    floors.appendChild(b);
+  }
+  if (finishes.length) {
+    const b = toolButton('Plain floor', 'free', '');
+    b.querySelector('.coin').remove();
+    b.onclick = () => setTool(tool?.kind === 'paint' && !tool.finish ? null : { kind: 'paint', room: null, finish: '' }, b);
+    floors.appendChild(b);
+  }
+  $('combosBox').hidden = !(catalog.combos || []).length;
   const walls = $('wallButtons');
   const wallTool = (name, cost, t) => {
     const b = toolButton(name, cost, '');
@@ -265,7 +313,7 @@ function setupHud() {
     $('menu').hidden = true;
     const r = engine.call({ op: 'export' });
     if (r.error) return toast(r.error);
-    download(JSON.stringify(r.dwellings, null, 2), `${catalog.inn.name}.json`);
+    download(JSON.stringify(r.dwellings, null, 2), `${innName()}.json`);
     toast('Exported in the format of watabou\'s Dwellings');
   };
   $('mImport').onclick = () => { $('menu').hidden = true; $('importFile').click(); };
@@ -294,7 +342,78 @@ function setupHud() {
   $('overNew').onclick = () => restart();
   $('overLook').onclick = () => { $('over').hidden = true; };
 
+  filterUnits();
   setupInput();
+}
+
+function roomName(id) {
+  return catalog.rooms.find((r) => r.id === id)?.name || id;
+}
+
+function unitName(id) {
+  return catalog.units.find((u) => u.id === id)?.name || id;
+}
+
+// What a combo needs, in words: "a Hearth within 2", "two Candles beside it".
+function comboWhat(c) {
+  const count = ['', '', 'two ', 'three ', 'four ', 'five '];
+  const parts = c.near.map((n) => {
+    const what = n.units.map(unitName).join(' or ');
+    const k = n.count > 1 ? (count[n.count] || `${n.count} `) : 'a ';
+    const where = n.radius <= 1 ? 'beside it' : `within ${n.radius}`;
+    return `${k}${what} ${where}`;
+  });
+  if (c.rooms.length) parts.push(`in the ${c.rooms.map((r) => roomName(r).toLowerCase()).join(' or ')}`);
+  return parts.join(', ') || 'by itself';
+}
+
+function filterUnits() {
+  document.querySelectorAll('#unitButtons button').forEach((b) => {
+    b.hidden = !!unitRoom && !b.dataset.rooms.split(' ').includes(unitRoom) && b.dataset.rooms !== '';
+  });
+}
+
+function renderCombos() {
+  if (!(catalog.combos || []).length) return;
+  const active = new Map();
+  for (const u of state.units) for (const c of u.combos || []) active.set(c, (active.get(c) || 0) + 1);
+  const locked = new Set(state.locked || []);
+  const key = JSON.stringify([...active]) + [...locked].join();
+  if (key === renderCombos.key) return;
+  renderCombos.key = key;
+  $('comboCount').textContent = `${active.size}/${catalog.combos.length}`;
+  $('comboList').innerHTML = catalog.combos.map((c) => {
+    const n = active.get(c.id) || 0;
+    const cls = n ? 'combo on' : locked.has(c.id) ? 'combo locked' : 'combo';
+    const lock = locked.has(c.id) ? ` · <i>not unlocked yet: see the ${esc(ledgerName())}</i>` : '';
+    return `<div class="${cls}"><b>${n ? '✦' : '◇'} ${esc(c.name)}</b>${n > 1 ? ` <span class="k">×${n}</span>` : ''}
+      <span class="w">${esc(c.at.map(unitName).join(' or '))}: ${esc(comboWhat(c))}${lock}</span>
+      ${c.text ? `<span class="t">${esc(c.text)}</span>` : ''}</div>`;
+  }).join('');
+}
+
+// The combos a unit of kind `k` at (x, y, z) would have, if the units were `units` (statically:
+// its furniture and room; the combos' tests are left to the engine).
+function combosAt(k, x, y, z, room, units) {
+  return (catalog.combos || []).filter((c) => c.at.includes(k)
+    && (!c.rooms.length || c.rooms.includes(room))
+    && c.near.every((n) => units.filter((v) => v.z === z && !(v.x === x && v.y === y)
+      && n.units.includes(v.unit) && Math.abs(v.x - x) <= n.radius && Math.abs(v.y - y) <= n.radius).length >= n.count))
+    .map((c) => c.id);
+}
+
+// Whether putting unit `k` on a cell would make a combo hold that does not now (for it, or for
+// furniture near it).
+function makesCombo(k, cell) {
+  const rooms = new Map(state.cells.map((c) => [`${c.x},${c.y},${c.z}`, c.room]));
+  const after = [...state.units, { x: cell.x, y: cell.y, z: cell.z, unit: k }];
+  if (combosAt(k, cell.x, cell.y, cell.z, cell.room, after).length) return true;
+  return state.units.some((u) => {
+    if (u.z !== cell.z || Math.abs(u.x - cell.x) > 3 || Math.abs(u.y - cell.y) > 3) return false;
+    const room = rooms.get(`${u.x},${u.y},${u.z}`);
+    const before = combosAt(u.unit, u.x, u.y, u.z, room, state.units);
+    return combosAt(u.unit, u.x, u.y, u.z, room, after).some((c) => !before.includes(c));
+  });
 }
 
 function download(text, name) {
@@ -371,12 +490,17 @@ function showHints() {
     for (const c of state.cells) {
       if (c.z !== z || used.has(`${c.x},${c.y},${c.z}`)) continue;
       if (u.stairs && z + 1 >= state.grid[2]) continue;
-      if (!u.rooms.length || u.rooms.includes(c.room)) out.push([c.x, c.y]);
+      if (!u.rooms.length || u.rooms.includes(c.room)) out.push(makesCombo(u.id, c) ? [c.x, c.y, 0xffc93c] : [c.x, c.y]);
+    }
+  } else if (tool.kind === 'paint') {
+    for (const c of state.cells) {
+      if (c.z !== z) continue;
+      if (tool.finish ? c.room === tool.room && c.finish !== tool.finish : !!c.finish) out.push([c.x, c.y]);
     }
   } else {
     for (const u of state.units) if (u.z === z) out.push([u.x, u.y]);
   }
-  view.showHints(out, tool.kind === 'remove' ? 0xff8a65 : 0xfff3b0);
+  view.showHints(out, tool.kind === 'remove' ? 0xff8a65 : tool.kind === 'turn' ? 0x8fd3ff : 0xfff3b0);
 }
 
 function global(id) {
@@ -385,6 +509,8 @@ function global(id) {
 
 function render(before) {
   const ph = catalog.phases.find((p) => p.id === state.phase);
+  $('innName').textContent = innName();
+  document.title = `OpenInn: ${innName()}`;
   $('dayLabel').textContent = MODE === 'endless' ? `Day ${state.day} ∞` : `Day ${state.day}`;
   $('levels').hidden = state.grid[2] <= 1;
   $('phaseLabel').textContent = ph?.name || state.phase;
@@ -408,6 +534,7 @@ function render(before) {
   showHints();
   renderGuests();
   renderLedger();
+  renderCombos();
   if (before && state.run !== before.run) {
     $('over').hidden = true;
     setLevel(0);
@@ -519,7 +646,7 @@ function logEvent(e) {
       break;
     }
     case 'restart':
-      text = `A new ${catalog.inn.name} opens (run ${e.run + 1}).`;
+      text = `A new ${innName()} opens (run ${e.run + 1}).`;
       cls = 'phase';
       break;
     default:
@@ -710,8 +837,10 @@ function setupInput() {
     if (!pointers.has(e.pointerId)) {
       if (tool && state?.build && WALL_TOOLS.has(tool.kind)) view.setHoverEdge(view.pickEdge(e.clientX, e.clientY));
       else view.setHover(tool && state?.build ? view.pickCell(e.clientX, e.clientY) : null);
+      showTip(e);
       return;
     }
+    $('tip').hidden = true;
     const prev = pointers.get(e.pointerId);
     const dx = e.clientX - prev.x;
     const dy = e.clientY - prev.y;
@@ -740,6 +869,7 @@ function setupInput() {
       drag = null;
     }
   };
+  canvas.addEventListener('pointerleave', () => { $('tip').hidden = true; });
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', up);
   canvas.addEventListener('wheel', (e) => { e.preventDefault(); view.zoom(e.deltaY > 0 ? 1.1 : 0.9); }, { passive: false });
@@ -749,6 +879,7 @@ function setupInput() {
     if (e.key === 'Escape') { setTool(null); $('menu').hidden = true; $('help').hidden = true; }
     if (e.key === 'PageUp' || e.key === '[') setLevel(view.level - 1);
     if (e.key === 'PageDown' || e.key === ']') setLevel(view.level + 1);
+    if ((e.key === 'r' || e.key === 'R') && state.build) setTool(tool?.kind === 'turn' ? null : { kind: 'turn' }, $('turnTool'));
     if (e.key === 'q') view.turn(0.15);
     if (e.key === 'e') view.turn(-0.15);
   });
@@ -775,7 +906,30 @@ function click(x, y) {
   const [cx, cy] = cell;
   if (tool.kind === 'dig') send({ do: 'dig', x: cx, y: cy, z, room: tool.room });
   else if (tool.kind === 'build') send({ do: 'build', x: cx, y: cy, z, unit: tool.unit });
+  else if (tool.kind === 'turn') send({ do: 'turn', x: cx, y: cy, z });
+  else if (tool.kind === 'paint') send({ do: 'paint', x: cx, y: cy, z, finish: tool.finish });
   else send({ do: 'remove', x: cx, y: cy, z });
+}
+
+// What stands under the pointer: its name and the combos that hold for it.
+function showTip(e) {
+  const tip = $('tip');
+  const cell = state && view.pickCell(e.clientX, e.clientY);
+  const u = cell && state.units.find((x) => x.x === cell[0] && x.y === cell[1] && x.z === view.level);
+  const c = !u && cell && state.build && state.cells.find((x) => x.x === cell[0] && x.y === cell[1] && x.z === view.level);
+  if (!u && !c) { tip.hidden = true; return; }
+  if (u) {
+    const combos = (u.combos || []).map((id) => catalog.combos.find((k) => k.id === id)).filter(Boolean);
+    tip.innerHTML = `<b>${esc(unitName(u.unit))}</b>${combos.map((k) => `<div class="on">✦ ${esc(k.name)}</div>`).join('')}`;
+  } else {
+    const room = catalog.rooms.find((r) => r.id === c.room);
+    const fin = c.finish && room?.finishes?.find((f) => f.id === c.finish);
+    tip.innerHTML = `<b>${esc(room?.name || c.room)}</b>${fin ? `<div>${esc(fin.name)}</div>` : ''}`;
+  }
+  const r = $('scene').getBoundingClientRect();
+  tip.style.left = `${e.clientX - r.left + 14}px`;
+  tip.style.top = `${e.clientY - r.top + 14}px`;
+  tip.hidden = false;
 }
 
 boot().catch((e) => {

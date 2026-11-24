@@ -1,6 +1,7 @@
 # The test bot's plan for The Slow Orbit (crates/openinn/tests/bot.rs). Around the airlock at
 # (6, 0): an airlock deck running south, the lounge to the west with the galley and hold behind
-# it, the cabins to the east.
+# it, the cabins to the east, the med bay and the wash deck below them, the observation lounge
+# south of the lounge, the hydroponics bay and the sim den to the south-west.
 dig 6 1 airlock
 dig 6 2 airlock
 dig 5 1 lounge
@@ -17,21 +18,58 @@ build 3 2 tanks
 build 2 1 locker
 # Night 2 and on, as credits allow.
 build 6 1 charger
-build 5 2 scrubber
 dig 6 3 airlock
+build 6 3 scrubber
 dig 7 2 cabins
 dig 7 3 cabins
 build 7 2 pod
 build 7 3 pod
+# The tourists come bored: an observation lounge.
+dig 6 4 airlock
+dig 5 4 viewport
+dig 4 4 viewport
+build 5 4 viewbench
 dig 5 3 lounge
 dig 4 3 lounge
 build 5 3 table
-build 4 3 table
+build 4 3 table             # three tables together: a mess hall
 dig 8 2 cabins
+build 8 2 lamp              # a lamp by the pods: homely cabins
+# The miners bring a rad dose and belt grime: a med bay and a wash deck.
+dig 7 4 medbay
+dig 8 4 medbay
+build 7 4 medpod
+build 8 4 gelsynth          # beside the pod: a triage bay
+dig 7 5 spa
+build 7 5 shower
+dig 8 5 spa
+build 8 5 planter           # beside the shower: fern steam
+build 4 1 bar               # beside the first: a long bar
+build 5 2 screen            # beside both counters: lit counters
+build 4 4 starmap           # beside the bench: a window seat
+build 6 2 charger           # two posts on the airlock deck: a charging bay
+dig 3 3 hydro
+build 3 3 hydrorack         # the mess tables are within two cells: garden tables
+dig 2 3 hydro
+build 2 3 greenbar
 dig 8 3 cabins
-build 8 2 berth
 build 8 3 scrubber
-dig 5 4 lounge
-build 5 4 bar
+dig 6 5 airlock
+build 6 4 planter
+build 6 5 planter           # two planters near the mess table at (5, 3): a fresh-air lounge
+dig 3 4 simden
+dig 2 4 simden
+dig 1 4 simden
+build 3 4 arcade
+build 2 4 arcade
+build 1 4 arcade            # three in a row: an arcade row
 dig 9 2 cabins
-build 9 2 berth
+build 9 2 pod
+dig 9 3 cabins
+build 9 3 armchair
+dig 4 5 viewport
+dig 5 5 viewport
+build 4 5 booth
+build 5 5 lamp              # beside the booth: a lamplit snug
+dig 9 4 medbay
+build 9 4 scrubber

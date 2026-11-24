@@ -46,3 +46,88 @@ unitRule draw
     global Open atLeast 1
     global Credits in 0.02
 end
+
+# ---------- the new rooms' machines ----------
+
+# The hydroponic racks grow greens for the greens counter while the airlock is open, for the
+# light and the nutrient they take; the plants drink the CO2 around them.
+unitRule grow
+    appliesTo hydrorack
+    rate 4
+    global Open atLeast 1
+    global Greens less 12
+    global Credits in 0.4
+    global Greens out 2
+    map CO2 in 0.5 radius 1
+end
+
+# A gel synthesiser makes med gel for the med pods: dear stuff.
+unitRule synthesise
+    appliesTo gelsynth
+    rate 5
+    global Open atLeast 1
+    global Medgel less 6
+    global Credits in 2.5
+    global Medgel out 2
+end
+
+# The stout synth ferments rations into Tessel stout, and gurgles.
+unitRule ferment
+    appliesTo vat
+    rate 4
+    global Open atLeast 1
+    global Stout less 10
+    global Rations in 1
+    global Credits in 0.5
+    global Stout out 3
+    map Noise out 0.3
+end
+
+# A water reclaimer wrings water out of the ring's air for the steam tubs.
+unitRule reclaim
+    appliesTo reclaimer
+    rate 3
+    global Open atLeast 1
+    global Water less 10
+    global Credits in 0.4
+    global Water out 2
+end
+
+# ---------- decor: comfort ----------
+
+# A fern planter gives off comfort and drinks a little CO2, for nothing.
+unitRule fern
+    appliesTo planter
+    map Comfort out 0.25 radius 1
+    map CO2 in 0.15 radius 1
+end
+
+# A glow lamp draws a trickle of power at night.
+unitRule glow
+    appliesTo lamp
+    global Open atLeast 1
+    global Credits in 0.01
+    map Comfort out 0.2 radius 1
+end
+
+# A starfield screen draws a little more.
+unitRule starfield
+    appliesTo screen
+    global Open atLeast 1
+    global Credits in 0.02
+    map Comfort out 0.3 radius 1
+end
+
+# The drift shrine's calm reaches two cells.
+unitRule calm
+    appliesTo shrine
+    map Comfort out 0.4 radius 2
+end
+
+# Game consoles and sim rigs draw power and hum, even idle.
+unitRule hum
+    appliesTo arcade simrig
+    global Open atLeast 1
+    global Credits in 0.03
+    map Noise out 0.2
+end

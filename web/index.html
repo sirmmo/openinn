@@ -17,7 +17,7 @@
 
 <div id="hud" hidden>
   <header id="top" class="card">
-    <div class="name" id="innName"></div>
+    <button class="name" id="innName" title="Rename"></button>
     <div class="phase"><b id="dayLabel"></b> <span id="phaseLabel"></span></div>
     <div class="stats">
       <span class="stat" title="Gold"><i class="coin"></i><b id="gold">0</b></span>
@@ -38,10 +38,22 @@
       <h3>Dig</h3>
       <div class="grid" id="digButtons"></div>
       <h3>Furnish</h3>
+      <select id="unitRooms" title="Show the furniture for a room"></select>
       <div class="grid" id="unitButtons"></div>
-      <h3>Walls</h3>
-      <div class="grid" id="wallButtons"></div>
-      <button class="tool wide" id="removeTool" data-tool="remove">Remove (half back)</button>
+      <div class="grid two">
+        <button class="tool" id="turnTool" title="Turn furniture a quarter round (R)"><span class="n">Turn</span><span class="c">free</span></button>
+        <button class="tool" id="removeTool" title="Take furniture away"><span class="n">Remove</span><span class="c">half back</span></button>
+      </div>
+      <details id="wallsBox"><summary>Walls</summary>
+        <div class="grid" id="wallButtons"></div>
+      </details>
+      <details id="floorsBox"><summary>Floors</summary>
+        <div class="grid" id="floorButtons"></div>
+      </details>
+      <details id="combosBox"><summary>Combos <span id="comboCount"></span></summary>
+        <p class="hint">Furniture that works better together. Where a piece you are placing would make one, its square glows gold; a gem floats over furniture whose combo holds.</p>
+        <div id="comboList"></div>
+      </details>
       <button class="primary" id="openDoors">Open the doors</button>
     </div>
     <div id="nightTools" hidden>
@@ -86,6 +98,7 @@
   <ol id="log"></ol>
   <div id="floaters"></div>
   <div id="toast" hidden></div>
+  <div id="tip" hidden></div>
 </div>
 
 <input type="file" id="importFile" accept=".json,application/json" hidden>
@@ -102,7 +115,8 @@
       </ol>
     </div>
     <p class="small">Controls: click a glowing square to dig or build; drag to move the view, right-drag
-      (or two fingers) to turn it, wheel or pinch to zoom; space pauses the night.</p>
+      (or two fingers) to turn it, wheel or pinch to zoom; space pauses the night. <kbd>R</kbd> (or Turn)
+      turns furniture; click the inn's name to give it your own.</p>
     <p class="small">Every rule of the inn is a <a href="../rulesets.html">GlassBox script</a>; <a href="../">OpenInn's documentation</a> explains how to write your own. Code: GPL-3.0.</p>
     <button class="primary" id="helpClose">To work</button>
   </div>

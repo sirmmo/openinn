@@ -8,7 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 glassbox = "0.1"
-openidle = { git = "https://github.com/sirmmo/openidle", rev = "5072d5fa411e13f75cb454c024d1502f5dba3f5a" }
+openidle = { git = "https://github.com/sirmmo/openidle", rev = "25b62a1a9d59d0a2bfb17a14c44eb089cdd3a433" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

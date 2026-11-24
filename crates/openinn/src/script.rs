@@ -9,7 +9,8 @@
 //! unit bar             # a piece of furniture or a station: where it may stand, what it costs
 //! need Thirst          # something guests feel
 //! service ale          # what a unit gives a guest for a need, and what it takes
-//! guest adventurer     # a kind of guest: purse, needs, dislikes, when they come
+//! guest adventurer     # a kind of guest: purse, needs, likes and dislikes, when they come
+//! combo snug           # furniture that works better together: a table by a hearth
 //! look dungeon         # how a client draws the inn: models, colours, words (the engine ignores it)
 //! idle ledger          # the inn's incremental layer: an OpenIdle game, and how it meets the inn
 //! ```
@@ -23,8 +24,8 @@
 use glassbox::{compile, number, split_blocks, tokenize, Block, Cmp, Error, Line, Rules, Scope};
 
 /// OpenInn's block kinds, compiled here; everything else goes to GlassBox.
-pub const HOST_KINDS: [&str; 10] = [
-    "inn", "phase", "layer", "room", "unit", "need", "service", "guest", "look", "idle",
+pub const HOST_KINDS: [&str; 11] = [
+    "inn", "phase", "layer", "room", "unit", "need", "service", "guest", "combo", "look", "idle",
 ];
 
 /// What, in the inn, feeds a resource of the incremental layer.
@@ -41,6 +42,10 @@ pub enum FeedEvent {
     Angry,
     /// A night ended.
     Night,
+    /// A guest was served this service.
+    Service(usize),
+    /// A guest was served at a unit where this combo holds.
+    Combo(usize),
 }
 
 /// Something the incremental layer locks until an expression holds.
@@ -48,6 +53,7 @@ pub enum FeedEvent {
 pub enum Lockable {
     Unit(usize),
     Room(usize),
+    Combo(usize),
 }
 
 /// How the inn and its incremental layer (an OpenIdle game, played by one player) meet:
@@ -60,11 +66,15 @@ pub enum Lockable {
 ///     feed Served served          # the idle resource Served gets 1 for every guest served
 ///     feed Takings earned 1       # ... the price of every service
 ///     feed Renown happy           # ... 1 for every guest who leaves happy (`angry`, `arrived`, `night`)
+///     feed Lore service read      # ... 1 for every guest served this service
+///     feed Renown combo snug 0.5  # ... 0.5 for every guest served where this combo holds
+///     boost snug 1 + Bellows      # the combo's effects, times this
 ///     price ale 1 + 0.5 * Stout   # the ale's price, times this (an OpenIdle expression)
 ///     price * 1 + 0.1 * Legend    # every price, times this
 ///     arrive 1 + Bell             # the chance of a guest, times this
 ///     patience 1 + 0.5 * Benches  # how long guests wait, times this
 ///     unlock bed Featherbeds      # the unit (or room) can be built only while this holds
+///     unlock snug Bellows         # the combo works only while this holds
 ///     set Fame Renown             # the inn's global Fame is this, after every step
 ///     restart sell                # taking this prestige sells the inn: the building starts over
 /// end
@@ -83,6 +93,8 @@ pub struct IdleBridge {
     pub arrive: Vec<String>,
     pub patience: Vec<String>,
     pub unlocks: Vec<(Lockable, String)>,
+    /// (combo, expression): how strongly a combo works.
+    pub boosts: Vec<(usize, String)>,
     /// (inn global, expression)
     pub sets: Vec<(usize, String)>,
     /// Prestiges that start the building over.
@@ -159,6 +171,55 @@ pub struct RoomDef {
     pub floor: String,
     /// Watabou Dwellings room names that import as this room (`living-room`; `*` for any).
     pub dwellings: Vec<String>,
+    pub text: String,
+    /// Floors the player can lay instead of the plain one (a cosmetic choice).
+    pub finishes: Vec<FinishDef>,
+}
+
+/// A floor a room can be finished with: `finish carpet floor_wood_large_dark 3 Dark boards`.
+#[derive(Clone, Debug)]
+pub struct FinishDef {
+    pub id: String,
+    pub name: String,
+    pub model: String,
+    /// Per cell.
+    pub cost: f64,
+}
+
+/// Furniture that works better together. A unit of one of the `at` kinds has the combo while
+/// every `near` holds (enough units of those kinds within the radius, on its level), it stands in
+/// one of the `in` room kinds (if any are given) and every test holds at its cell.
+///
+/// ```text
+/// combo snug
+///     name Snug corner
+///     text A table by the hearth: stew sells for a fifth more, and guests warm to the place.
+///     at table                  # the units that get it
+///     near hearth 2             # a hearth within 2 cells (`near candles,banner 1 2`: two of either)
+///     in taproom                # standing in a taproom
+///     if map Noise less 6       # tests at the unit's cell, now
+///     price 1.2                 # its services cost this much more
+///     relief 1.25               # take this much more of the need away
+///     time 0.75                 # take this part of the time
+///     mood 0.05                 # guests it serves are this much happier (on top of 0.1)
+///     map Comfort out 0.3 radius 1   # every tick it holds
+/// end
+/// ```
+#[derive(Clone, Debug)]
+pub struct ComboDef {
+    pub id: String,
+    pub name: String,
+    pub text: String,
+    pub units: Vec<usize>,
+    /// (unit kinds, radius, how many)
+    pub near: Vec<(Vec<usize>, u32, u32)>,
+    pub rooms: Vec<usize>,
+    pub tests: Vec<Test>,
+    pub price: f64,
+    pub relief: f64,
+    pub time: f64,
+    pub mood: f64,
+    pub emits: Vec<(usize, f64, u32)>,
 }
 
 #[derive(Clone, Debug)]
@@ -176,6 +237,7 @@ pub struct UnitKind {
     pub model: String,
     /// Stairs: join their cell to the same cell one level further (down or up).
     pub stairs: bool,
+    pub text: String,
 }
 
 #[derive(Clone, Debug)]
@@ -227,7 +289,8 @@ pub struct GuestDef {
     pub patience: u32,
     /// (need, growth per tick, starting value)
     pub needs: Vec<(usize, f64, f64)>,
-    /// Each tick at a cell where one of these holds, mood drops by `amount`.
+    /// Each tick at a cell where one of these holds, mood drops by `amount` (`like` lines are
+    /// here too, with the amount negative: mood rises).
     pub dislikes: Vec<(Test, f64)>,
     /// All must hold for this guest to arrive.
     pub when: Vec<Test>,
@@ -247,6 +310,7 @@ pub struct Ruleset {
     pub needs: Vec<NeedDef>,
     pub services: Vec<ServiceDef>,
     pub guests: Vec<GuestDef>,
+    pub combos: Vec<ComboDef>,
     /// Colours for the layers, by layer name (`colour` in a layer block): hints for clients.
     pub layer_colours: Vec<(String, String)>,
     /// The `look` block's lines, `(key, rest of the line)`: hints for clients, unread here.
@@ -269,6 +333,12 @@ impl Ruleset {
     }
     pub fn guest(&self, id: &str) -> Option<usize> {
         self.guests.iter().position(|g| g.id == id)
+    }
+    pub fn combo(&self, id: &str) -> Option<usize> {
+        self.combos.iter().position(|c| c.id == id)
+    }
+    pub fn service(&self, id: &str) -> Option<usize> {
+        self.services.iter().position(|s| s.id == id)
     }
 }
 
@@ -319,12 +389,13 @@ pub fn load(all: &[(String, String)]) -> Result<Ruleset, Error> {
         let (w, _) = compile(&mut rs.rules, name, text, &HOST_KINDS)?;
         rs.warnings.extend(w);
     }
-    for kind in ["inn", "phase", "service", "guest", "look", "idle"] {
+    for kind in ["inn", "phase", "service", "guest", "combo", "look", "idle"] {
         for (f, b) in blocks.iter().filter(|(_, b)| b.kind == kind) {
             match kind {
                 "inn" => inn(&mut rs, f, b)?,
                 "phase" => phase(&mut rs, f, b)?,
                 "service" => service(&mut rs, f, b)?,
+                "combo" => combo(&mut rs, f, b)?,
                 "look" => look(&mut rs, f, b)?,
                 "idle" => idle(&mut rs, f, b)?,
                 _ => guest(&mut rs, f, b)?,
@@ -366,6 +437,19 @@ fn err(f: &str, l: &Line, m: impl Into<String>) -> Error {
 /// The words after the key, joined: free text such as names.
 fn text(l: &Line) -> String {
     l.words[1..].join(" ")
+}
+
+/// `text` lines: several are joined.
+fn add_text(to: &mut String, l: &Line) {
+    if !to.is_empty() {
+        to.push(' ');
+    }
+    to.push_str(&text(l));
+}
+
+fn unit_ref(rs: &Ruleset, f: &str, l: &Line, id: &str) -> Result<usize, Error> {
+    rs.unit(id)
+        .ok_or_else(|| err(f, l, format!("there is no unit {id:?}")))
 }
 
 fn word<'a>(f: &str, l: &'a Line, i: usize) -> Result<&'a str, Error> {
@@ -477,6 +561,8 @@ fn room(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
         colour: "#888888".into(),
         floor: String::new(),
         dwellings: Vec::new(),
+        text: String::new(),
+        finishes: Vec::new(),
     };
     for l in &b.lines {
         match l.words[0].as_str() {
@@ -488,6 +574,21 @@ fn room(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
             "dwellings" => r
                 .dwellings
                 .extend(l.words[1..].iter().map(|w| dwellings_name(w))),
+            "text" => add_text(&mut r.text, l),
+            // finish carpet floor_wood_large_dark 3 Dark boards
+            "finish" => {
+                let id = word(f, l, 1)?.to_string();
+                if r.finishes.iter().any(|x| x.id == id) {
+                    return Err(err(f, l, format!("finish {id} is given twice")));
+                }
+                let name = l.words[4.min(l.words.len())..].join(" ");
+                r.finishes.push(FinishDef {
+                    name: if name.is_empty() { id.clone() } else { name },
+                    id,
+                    model: word(f, l, 2)?.to_string(),
+                    cost: number(f, l, 3)?,
+                });
+            }
             _ => return Err(unknown(f, b, l)),
         }
     }
@@ -531,9 +632,11 @@ fn unit(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
         (0.0, 1, Vec::new(), Vec::new(), String::new());
     let mut starts: Vec<(String, f64, &Line)> = Vec::new();
     let mut stairs = false;
+    let mut about = String::new();
     for l in &b.lines {
         match l.words[0].as_str() {
             "stairs" => stairs = true,
+            "text" => add_text(&mut about, l),
             "name" => name = text(l),
             "cost" => cost = number(f, l, 1)?,
             "seats" => seats = number(f, l, 1)?.max(0.0) as u32,
@@ -569,6 +672,7 @@ fn unit(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
         start,
         model,
         stairs,
+        text: about,
     });
     Ok(())
 }
@@ -812,6 +916,11 @@ fn guest(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
                 let t = test(rs, f, l, 1)?;
                 g.dislikes.push((t, number(f, l, 5)?));
             }
+            // like map Comfort greater 2 0.004
+            "like" => {
+                let t = test(rs, f, l, 1)?;
+                g.dislikes.push((t, -number(f, l, 5)?));
+            }
             "if" => {
                 let t = test(rs, f, l, 1)?;
                 g.when.push(t);
@@ -829,6 +938,83 @@ fn guest(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
         ));
     }
     rs.guests.push(g);
+    Ok(())
+}
+
+fn combo(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
+    if rs.combo(&b.name).is_some() {
+        return Err(dup(f, b));
+    }
+    let mut c = ComboDef {
+        id: b.name.clone(),
+        name: b.name.clone(),
+        text: String::new(),
+        units: Vec::new(),
+        near: Vec::new(),
+        rooms: Vec::new(),
+        tests: Vec::new(),
+        price: 1.0,
+        relief: 1.0,
+        time: 1.0,
+        mood: 0.0,
+        emits: Vec::new(),
+    };
+    for l in &b.lines {
+        match l.words[0].as_str() {
+            "name" => c.name = text(l),
+            "text" => add_text(&mut c.text, l),
+            "at" => {
+                for id in &l.words[1..] {
+                    c.units.push(unit_ref(rs, f, l, id)?);
+                }
+            }
+            // near hearth 2 / near candles,banner 1 2
+            "near" => {
+                let mut kinds = Vec::new();
+                for id in word(f, l, 1)?.split(',').filter(|s| !s.is_empty()) {
+                    kinds.push(unit_ref(rs, f, l, id)?);
+                }
+                let radius = if l.words.len() > 2 {
+                    number(f, l, 2)?.max(0.0) as u32
+                } else {
+                    1
+                };
+                let count = if l.words.len() > 3 {
+                    number(f, l, 3)?.max(1.0) as u32
+                } else {
+                    1
+                };
+                c.near.push((kinds, radius, count));
+            }
+            // `in`, as in a unit (a `room` line would start a room block).
+            "in" => {
+                for id in &l.words[1..] {
+                    c.rooms.push(
+                        rs.room(id)
+                            .ok_or_else(|| err(f, l, format!("there is no room {id:?}")))?,
+                    );
+                }
+            }
+            "if" => {
+                let t = test(rs, f, l, 1)?;
+                c.tests.push(t);
+            }
+            "price" => c.price = number(f, l, 1)?.max(0.0),
+            "relief" => c.relief = number(f, l, 1)?.max(0.0),
+            "time" => c.time = number(f, l, 1)?.max(0.05),
+            "mood" => c.mood = number(f, l, 1)?,
+            "map" => c.emits.push(emission(rs, f, l)?),
+            _ => return Err(unknown(f, b, l)),
+        }
+    }
+    if c.units.is_empty() {
+        return Err(Error::new(
+            f,
+            b.no,
+            format!("combo {} needs `at <unit>`", b.name),
+        ));
+    }
+    rs.combos.push(c);
     Ok(())
 }
 
@@ -878,18 +1064,37 @@ fn idle(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
                     "happy" => FeedEvent::Happy,
                     "angry" => FeedEvent::Angry,
                     "night" => FeedEvent::Night,
+                    "service" => {
+                        let id = word(f, l, 3)?;
+                        FeedEvent::Service(
+                            rs.service(id)
+                                .ok_or_else(|| err(f, l, format!("there is no service {id:?}")))?,
+                        )
+                    }
+                    "combo" => {
+                        let id = word(f, l, 3)?;
+                        FeedEvent::Combo(
+                            rs.combo(id)
+                                .ok_or_else(|| err(f, l, format!("there is no combo {id:?}")))?,
+                        )
+                    }
                     w => {
                         return Err(err(
                             f,
                             l,
                             format!(
-                            "feed from arrived, served, earned, happy, angry or night, not {w:?}"
+                            "feed from arrived, served, earned, happy, angry, night, service or combo, not {w:?}"
                         ),
                         ))
                     }
                 };
-                let amount = if l.words.len() > 3 {
-                    number(f, l, 3)?
+                let at = if matches!(ev, FeedEvent::Service(_) | FeedEvent::Combo(_)) {
+                    4
+                } else {
+                    3
+                };
+                let amount = if l.words.len() > at {
+                    number(f, l, at)?
                 } else {
                     1.0
                 };
@@ -917,7 +1122,8 @@ fn idle(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
                     .unit(id)
                     .map(Lockable::Unit)
                     .or_else(|| rs.room(id).map(Lockable::Room))
-                    .ok_or_else(|| err(f, l, format!("there is no unit or room {id:?}")))?;
+                    .or_else(|| rs.combo(id).map(Lockable::Combo))
+                    .ok_or_else(|| err(f, l, format!("there is no unit, room or combo {id:?}")))?;
                 d.unlocks.push((what, rest(l, 2)));
             }
             "set" => {
@@ -925,6 +1131,13 @@ fn idle(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
                 d.sets.push((g, rest(l, 2)));
             }
             "restart" => d.restart.extend(l.words[1..].iter().cloned()),
+            "boost" => {
+                let id = word(f, l, 1)?;
+                let c = rs
+                    .combo(id)
+                    .ok_or_else(|| err(f, l, format!("there is no combo {id:?}")))?;
+                d.boosts.push((c, rest(l, 2)));
+            }
             _ => return Err(unknown(f, b, l)),
         }
     }
@@ -992,6 +1205,7 @@ fn idle_game(rs: &mut Ruleset, all: &[(String, String)]) -> Result<(), Error> {
         .chain(bridge.arrive.iter().map(|e| ("arrive", e)))
         .chain(bridge.patience.iter().map(|e| ("patience", e)))
         .chain(bridge.unlocks.iter().map(|(_, e)| ("unlock", e)))
+        .chain(bridge.boosts.iter().map(|(_, e)| ("boost", e)))
         .chain(bridge.sets.iter().map(|(_, e)| ("set", e)));
     for (key, e) in exprs {
         probe
@@ -1051,11 +1265,12 @@ impl Ruleset {
             "look": self.look.iter().map(|(k, v)| (k.clone(), serde_json::Value::from(v.clone()))).collect::<serde_json::Map<_, _>>(),
             "rooms": self.rooms.iter().map(|r| json!({
                 "id": r.id, "name": r.name, "cost": r.cost, "colour": r.colour, "floor": r.floor,
-                "dwellings": r.dwellings,
+                "dwellings": r.dwellings, "text": r.text,
+                "finishes": r.finishes.iter().map(|x| json!({ "id": x.id, "name": x.name, "model": x.model, "cost": x.cost })).collect::<Vec<_>>(),
             })).collect::<Vec<_>>(),
             "units": self.units.iter().map(|u| json!({
                 "id": u.id, "name": u.name, "cost": u.cost, "seats": u.seats, "model": u.model,
-                "stairs": u.stairs,
+                "stairs": u.stairs, "text": u.text,
                 "rooms": u.rooms.iter().map(|&r| self.rooms[r].id.clone()).collect::<Vec<_>>(),
                 "services": self.services.iter().filter(|s| s.units.contains(&self.unit(&u.id).unwrap()))
                     .map(|s| s.id.clone()).collect::<Vec<_>>(),
@@ -1065,6 +1280,15 @@ impl Ruleset {
                 "id": s.id, "name": s.name, "need": self.needs[s.need].id, "price": s.price, "time": s.time,
             })).collect::<Vec<_>>(),
             "guests": self.guests.iter().map(|g| json!({ "id": g.id, "name": g.name, "model": g.model })).collect::<Vec<_>>(),
+            "combos": self.combos.iter().map(|c| json!({
+                "id": c.id, "name": c.name, "text": c.text,
+                "at": c.units.iter().map(|&u| self.units[u].id.clone()).collect::<Vec<_>>(),
+                "near": c.near.iter().map(|(k, r, n)| json!({
+                    "units": k.iter().map(|&u| self.units[u].id.clone()).collect::<Vec<_>>(), "radius": r, "count": n,
+                })).collect::<Vec<_>>(),
+                "rooms": c.rooms.iter().map(|&r| self.rooms[r].id.clone()).collect::<Vec<_>>(),
+                "price": c.price, "relief": c.relief, "time": c.time, "mood": c.mood,
+            })).collect::<Vec<_>>(),
         })
     }
 }

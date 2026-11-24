@@ -1,13 +1,14 @@
-# The Gilded Mimic: an inn on the third level of the dungeon, for adventurers on their way down.
-# By day you dig and furnish; by night the doors are open and the guests come down the stairs.
-# The economy (brewing, cooking, buying supplies, scrubbing) is in economy.gbx.
+# The Gilded Mimic: an inn on the third level of the dungeon, for adventurers on their way down
+# and the few who come back up. By day you dig and furnish; by night the doors are open and the
+# guests come down the stairs.
+# The economy (brewing, cooking, distilling, boiling, growing, glowing) is in economy.gbx.
 
 inn dungeon
     name The Gilded Mimic
     grid 12 9
     entrance 6 0 hall           # the stairs from the level above
     money Gold
-    reputation Reputation 3     # a delighted guest adds 3, a furious one takes 3 away
+    reputation Reputation 2     # a delighted guest adds 2, a furious one takes 2 away
     start Gold 320
     start Reputation 5
     start Ale 10                # the stores are stocked for the first night
@@ -60,14 +61,37 @@ layer Dirt
     colour 7a5c3a
 end
 
+# Cheer: what candles, banners, trophies and a contented mimic give a room. Most guests like it.
+layer Cheer
+    decay 0.15
+    diffuse 0.15
+    max 20
+    colour f2c14e
+end
+
+# Damp: the bathhouse's steam and the cistern's drip. Mushrooms need it; wizards hate it.
+layer Damp
+    decay 0.05
+    diffuse 0.1
+    max 30
+    colour 4fa3a5
+end
+
 # ---------- rooms (cost per cell dug) ----------
+# `dwellings`: the rooms of a Dwellings house that import as this room.
+# `finish`: floors the player can lay over the plain one (id, model, cost per cell, name).
 
 room hall
     name Hall
     cost 6
     colour 8d8a99
     floor floor_tile_large
-    dwellings hall corridor stairhall gallery secret-passage lookout           # Dwellings rooms imported as this
+    dwellings hall corridor stairhall gallery secret-passage lookout
+    text Passages between the rooms. Guests walk through; a washstand, a trophy or the stairs down
+    text can stand here.
+    finish rough floor_tile_large_rocks 2 Rubbled flags
+    finish grating floor_tile_big_grate 4 Iron grating
+    finish cracked floor_tile_small_broken_A:0:0:0:2 1 Cracked tiles
 end
 
 room taproom
@@ -75,7 +99,11 @@ room taproom
     cost 10
     colour b5734a
     floor floor_wood_large
-    dwellings living-room room chapel library study trophy-room observatory greenhouse studio *
+    dwellings living-room room *
+    text Where guests drink and eat: the bar, the tables, stools at the bar and a banner over them.
+    finish dark floor_wood_large_dark 3 Dark oak boards
+    finish planks floor_wood_small:0:0:0:2 2 Narrow planks
+    finish flags floor_tile_large 2 Flagstones
 end
 
 room kitchen
@@ -83,7 +111,11 @@ room kitchen
     cost 12
     colour c9a227
     floor floor_tile_small:0:0:0:2   # small tiles, twice the size
-    dwellings kitchen workshop laboratory
+    dwellings kitchen workshop
+    text The hearth cooks stew from the larder's provisions while the doors are open.
+    finish flags floor_tile_large 2 Flagstones
+    finish earth floor_dirt_large 1 Beaten earth
+    finish worn floor_tile_small_broken_B:0:0:0:2 1 Worn tiles
 end
 
 room cellar
@@ -91,7 +123,11 @@ room cellar
     cost 8
     colour 6b5040
     floor floor_dirt_large
-    dwellings cellar storage vault armoury attic bathroom
+    dwellings cellar storage attic
+    text Cool and dark: the kegs, the larder and the copper still.
+    finish rocky floor_dirt_large_rocky 1 Rocky earth
+    finish flags floor_tile_large 3 Flagstones
+    finish drains floor_tile_extralarge_grates:0:0:0:0.5 4 Drain grates
 end
 
 room dorm
@@ -100,6 +136,82 @@ room dorm
     colour 5d7fa3
     floor floor_wood_large_dark
     dwellings bedroom
+    text Bunks and feather beds for the night. Keep it quiet: wall it off from the taproom.
+    finish oak floor_wood_large 3 Light boards
+    finish planks floor_wood_small_dark:0:0:0:2 2 Narrow dark planks
+end
+
+room shrine
+    name Shrine
+    cost 14
+    colour e3d3a4
+    floor floor_tile_large
+    dwellings chapel
+    text A quiet place for the wounded: an altar to bless them, candles round it, pews before it.
+    finish mossy floor_tile_small_weeds_A:0:0:0:2 1 Mossy tiles
+    finish worn floor_tile_small_broken_B:0:0:0:2 1 Worn tiles
+    finish dark floor_wood_large_dark 3 Dark boards
+end
+
+room bathhouse
+    name Bathhouse
+    cost 12
+    colour 4f9da6
+    floor floor_tile_small:0:0:0:2
+    dwellings bathroom
+    text Copper tubs and a boiler for the grime of the deep. Steamy: the damp spreads.
+    finish mossy floor_tile_small_weeds_B:0:0:0:2 1 Mossy tiles
+    finish flags floor_tile_large 2 Flagstones
+    finish drains floor_tile_extralarge_grates:0:0:0:0.5 4 Drain grates
+end
+
+room den
+    name Gaming den
+    cost 10
+    colour 9b3d5a
+    floor floor_wood_small_dark:0:0:0:2
+    dwellings studio
+    text Dice and cards for bored guests. Loud: keep it away from the shrine and the map room.
+    finish boards floor_wood_large 2 Plain boards
+    finish dark floor_wood_large_dark 3 Dark boards
+end
+
+room library
+    name Map room
+    cost 12
+    colour 7d5ba6
+    floor floor_wood_large_dark
+    dwellings library study observatory
+    text Bookcases, reading desks and the surveyors' map table. It wants quiet; the lower level is
+    text quieter.
+    finish planks floor_wood_small:0:0:0:2 2 Narrow planks
+    finish flags floor_tile_large 2 Flagstones
+end
+
+room garden
+    name Mushroom garden
+    cost 6
+    colour 5e8c4a
+    floor floor_dirt_small_weeds:0:0:0:2
+    dwellings greenhouse laboratory
+    text Mushroom beds, for the still. Nothing grows without damp: a cistern, or the bathhouse
+    text next door.
+    finish tilled floor_dirt_small_A:0:0:0:2 1 Tilled earth
+    finish rocky floor_dirt_large_rocky 1 Rocky earth
+    finish rubble floor_tile_large_rocks 2 Rubbled flags
+end
+
+room vault
+    name Trophy hall
+    cost 16
+    colour 3f4a5c
+    floor floor_tile_large
+    dwellings vault trophy-room armoury
+    text Iron doors, a hoard and the trophies of the deep, and a mimic to keep them. Open it in the
+    text ledger.
+    finish grating floor_tile_big_grate 4 Iron grating
+    finish cracked floor_tile_small_broken_A:0:0:0:2 1 Cracked tiles
+    finish rough floor_tile_large_rocks 2 Rubbled flags
 end
 
 # ---------- needs ----------
@@ -119,6 +231,21 @@ need Rest
     urgent 60
 end
 
+need Grime
+    name Grime
+    urgent 60
+end
+
+need Wounds
+    name Wounds
+    urgent 45
+end
+
+need Boredom
+    name Boredom
+    urgent 55
+end
+
 # ---------- furniture and stations ----------
 
 unit bar
@@ -127,6 +254,7 @@ unit bar
     cost 50
     seats 3
     model bar_straight_A
+    text Ale for the thirsty, and mushroom tonic for the wounded once the still is running.
 end
 
 unit table
@@ -135,6 +263,7 @@ unit table
     cost 20
     seats 2
     model table_medium_decorated_A
+    text Stew for the hungry. Better within two cells of the hearth, or beside a banner.
 end
 
 unit hearth
@@ -143,6 +272,7 @@ unit hearth
     cost 60
     seats 0
     model table_long_decorated_C
+    text Cooks stew from provisions at night and warms the rooms round it.
 end
 
 unit larder
@@ -151,6 +281,7 @@ unit larder
     cost 30
     seats 0
     model shelves_decorated
+    text Buys provisions from the traders upstairs, a few at a time.
 end
 
 unit kegs
@@ -159,6 +290,7 @@ unit kegs
     cost 40
     seats 0
     model keg_decorated
+    text Taps a barrel whenever the bar runs low on ale.
 end
 
 unit washtub
@@ -167,6 +299,7 @@ unit washtub
     cost 25
     seats 0
     model barrel_large
+    text A scullion scrubs the floors round it, for a small wage.
 end
 
 unit stairs
@@ -176,6 +309,7 @@ unit stairs
     seats 0
     stairs                      # joins this cell to the one below
     model stairs:0:-0.5:0:0.8:-1.02   # sunk: the top step at the floor, the flight going down
+    text Opens the level below: dig the cell under it next.
 end
 
 unit bunk
@@ -184,6 +318,7 @@ unit bunk
     cost 30
     seats 2
     model bed_A_stacked
+    text Two cheap beds.
 end
 
 unit bed
@@ -192,9 +327,185 @@ unit bed
     cost 45
     seats 1
     model bed_decorated
+    text A good night for a good price, better where it is quiet. Needs feather mattresses
+    text (the ledger).
+end
+
+unit stool
+    name Bar stools
+    in taproom den
+    cost 15
+    seats 0
+    model stool_round:-0.25:0.1 stool_round:0:0.1 stool_round:0.25:0.1
+    text Next to a bar, the regulars settle in: drinks go down faster.
+end
+
+unit candles
+    name Candle stand
+    cost 15
+    seats 0
+    model column:0:0:0:0.7 candle_triple:0:0:0:1:0.245
+    text Cheer and a little warmth round it, in any room. Two by an altar make it glow.
+end
+
+unit banner
+    name Guild banner
+    in hall taproom den vault
+    cost 25
+    seats 0
+    model post banner_patternA_red:0:-0.05
+    text Cheer for two cells round. Parties at a table beside it toast their guild.
+end
+
+unit trophy
+    name Trophy stand
+    in hall taproom vault library
+    cost 30
+    seats 0
+    model post:0:0:0:0.6 sword_shield:0:-0.07:0:1:0.5
+    text A dented shield from below: cheer round it, and tales for a map table beside it.
+end
+
+unit still
+    name Copper still
+    in cellar garden
+    cost 70
+    seats 0
+    model keg:0:0:0:0.8 bottle_A_green:0.3:0.3 bottle_C_brown:0.36:0.18
+    text Distils mushrooms into tonic for the bar, at night, for a little gold. Warm.
+end
+
+unit mushbed
+    name Mushroom bed
+    in garden
+    cost 20
+    seats 0
+    model mushroom_redGroup:-0.15:-0.1:0:6 mushroom_tanGroup:0.15:0.05:40:6 mushroom_redGroup:0.02:0.22:90:5 mushroom_tanGroup:-0.18:0.25:200:4
+    text Grows mushrooms for the still wherever the damp is 2 or more. Three together keep their
+    text own damp.
+end
+
+unit cistern
+    name Dripping cistern
+    in garden bathhouse cellar
+    cost 30
+    seats 0
+    model barrel_large bucket:0.32:0.3
+    text Drips day and night: damp round it.
+end
+
+unit altar
+    name Altar
+    in shrine
+    cost 80
+    seats 2
+    model table_long_tablecloth:0:0:90 candle_lit:-0.3:0:0:1:0.25 candle_lit:0.3:0:0:1:0.25
+    text Blesses the wounded. Candles round it, a basin by it and pews before it help.
+end
+
+unit pew
+    name Pew
+    in shrine
+    cost 20
+    seats 0
+    model bench:0:-0.2 bench:0:0.2
+    text Somewhere to kneel. Two by an altar fill the tithe box, once there is one.
+end
+
+unit washstand
+    name Washstand
+    in hall bathhouse dorm shrine
+    cost 15
+    seats 1
+    model table_small bucket:0:0:0:0.6:0.25
+    text A basin and a rag: a quick, cheap wash. By an altar, it cleans wounds.
+end
+
+unit tub
+    name Copper tub
+    in bathhouse
+    cost 50
+    seats 1
+    model barrel_large_decorated:0:0:0:1.1:-0.3 bucket:0.35:0.3
+    text A long soak in hot water from the boiler. Beside the boiler, in a warm room: a steam room.
+end
+
+unit boiler
+    name Boiler
+    in bathhouse kitchen
+    cost 45
+    seats 0
+    model barrel_large:0:0:0:0.9 torch_lit:-0.2:0.28 torch_lit:0.2:0.28
+    text Heats water for the tubs at night, for a little gold: heat and damp round it.
+end
+
+unit dicetable
+    name Dice table
+    in den taproom
+    cost 40
+    seats 3
+    model table_round_medium stool:0:-0.33 stool:0.3:0.2 stool:-0.3:0.2
+    text Bones for the bored: cheap and loud. Two side by side draw a crowd.
+end
+
+unit cardtable
+    name Card table
+    in den
+    cost 65
+    seats 2
+    model table_small_decorated_B chair:0:-0.25:0 chair:0:0.25:180
+    text A long game of cards: dearer, quieter. The stakes rise with the inn's reputation.
+end
+
+unit bookcase
+    name Bookcase
+    in library
+    cost 35
+    seats 0
+    model bookcase_double_decoratedA:0:-0.4
+    text Books soak up the noise round them. Two by a reading desk make a hushed corner.
+end
+
+unit desk
+    name Reading desk
+    in library
+    cost 40
+    seats 1
+    model table_small chair:0:0.2:180 book_brown:0:0:0:1:0.27 candle_lit:0.08:-0.06:0:0.6:0.25
+    text A quiet read for the bored: wizards love it. Feeds the ledger's lore.
+end
+
+unit maptable
+    name Map table
+    in library vault
+    cost 90
+    seats 2
+    model table_long_decorated_A:0:0:90
+    text The surveyors' maps of the levels below: guests pay well to pore over them. Lore for the
+    text ledger. Needs surveyors' maps (the ledger).
+end
+
+unit hoard
+    name Coin hoard
+    in vault
+    cost 60
+    seats 0
+    model chest_gold coin_stack_large:0.3:0.25 coin_stack_medium:-0.3:0.25
+    text Gold you never spend, for show: a little cheer. A mimic likes to sleep on one.
+end
+
+unit mimic
+    name Tame mimic
+    in vault taproom
+    cost 150
+    seats 0
+    model chest_mimic:0:0:0:1.4
+    text The inn's namesake. It eats a little of the provisions and gives a lot of cheer; guests
+    text at a bar within two cells tip to watch it yawn. Needs the mimic-tamer's whistle (the ledger).
 end
 
 # ---------- services ----------
+# A unit offers the first service in this list that meets the guest's most pressing need.
 
 service ale
     name A mug of ale
@@ -232,6 +543,233 @@ service bed
     time 40
 end
 
+service tonic
+    name A mushroom tonic
+    at bar
+    need Wounds 60
+    global Tonic in 1
+    price 7
+    time 4
+end
+
+service blessing
+    name A blessing
+    at altar
+    need Wounds 80
+    price 6
+    time 20
+end
+
+service rinse
+    name A wash at the basin
+    at washstand
+    need Grime 45
+    price 2
+    time 6
+    map Dirt out 0.5
+end
+
+service soak
+    name A hot soak
+    at tub
+    need Grime 90
+    global HotWater in 1
+    price 7
+    time 25
+    map Damp out 1 radius 1
+end
+
+service dice
+    name A game of bones
+    at dicetable
+    need Boredom 60
+    price 4
+    time 18
+    map Noise out 2 radius 1
+end
+
+service cards
+    name A hand of cards
+    at cardtable
+    need Boredom 85
+    price 7
+    time 25
+    map Noise out 0.5
+end
+
+service read
+    name A quiet read
+    at desk
+    need Boredom 75
+    price 5
+    time 30
+end
+
+service chart
+    name An evening over the maps
+    at maptable
+    need Boredom 70
+    price 9
+    time 20
+end
+
+# ---------- combos: furniture that works better together ----------
+# `near` counts units within a radius on the same level (diagonals count). Effects multiply the
+# services at the unit (`price`, `relief`, `time`) or add to the served guest's mood.
+
+combo snug
+    name Snug corner
+    text A table within two cells of the hearth: stew sells for a fifth more, and guests warm to
+    text the place.
+    at table
+    near hearth 2
+    price 1.2
+    mood 0.05
+    map Cheer out 0.2 radius 1
+end
+
+combo regulars
+    name Regulars' row
+    text Stools beside the bar: drinks go down a quarter faster, and a little dearer.
+    at bar
+    near stool 1
+    price 1.1
+    time 0.75
+end
+
+combo guildtable
+    name Under the banner
+    text A table beside a guild banner: parties toast their own, and order a little more.
+    at table
+    near banner 1
+    price 1.1
+    mood 0.04
+end
+
+combo candlelit
+    name Candles round the altar
+    text Two candle stands beside the altar: blessings go deeper, and the shrine glows.
+    at altar
+    near candles 1 2
+    relief 1.3
+    mood 0.1
+    map Cheer out 0.4 radius 2
+end
+
+combo healer
+    name Basin by the altar
+    text A washstand beside the altar: wounds are cleaned before they are blessed.
+    at altar
+    near washstand 1
+    relief 1.25
+    time 0.8
+end
+
+combo congregation
+    name Full pews
+    text Two pews beside the altar and a tithe box (the ledger): the faithful pay half as much again.
+    at altar
+    near pew 1 2
+    price 1.5
+end
+
+combo sanctified
+    name A blessed house
+    text Once the ledger's house is blessed, an altar in a shrine is dearer, stronger and bright.
+    at altar
+    if global Blessed atLeast 1
+    price 1.25
+    relief 1.2
+    map Cheer out 0.8 radius 2
+end
+
+combo steam
+    name Steam room
+    text A tub beside the boiler, in a warm room (heat 3 or more): soaks take less time, and
+    text everyone comes out pink and pleased.
+    at tub
+    near boiler 1
+    if map Heat atLeast 3
+    time 0.7
+    mood 0.08
+end
+
+combo quiet
+    name Hushed corner
+    text A reading desk with two bookcases beside it, in a map room where the noise is under 3:
+    text a deeper read and a happier reader.
+    at desk
+    near bookcase 1 2
+    if map Noise less 3
+    relief 1.3
+    mood 0.1
+end
+
+combo rowdy
+    name Dice in the round
+    text Two dice tables side by side draw a crowd: dearer games, merrier players, and more noise.
+    at dicetable
+    near dicetable 1
+    price 1.15
+    mood 0.05
+    map Noise out 1 radius 1
+end
+
+combo highstakes
+    name High stakes
+    text A card table in the gaming den once the inn's reputation is 40 or more: the stakes go up
+    text by half.
+    at cardtable
+    if global Reputation atLeast 40
+    price 1.5
+end
+
+combo charted
+    name Trophies by the map
+    text A trophy beside the map table: delvers point at it and tell the tale. Dearer evenings,
+    text and better ones.
+    at maptable
+    near trophy 1
+    price 1.3
+    relief 1.2
+end
+
+combo mimicbar
+    name The Gilded Mimic
+    text A tame mimic within two cells of the bar: guests tip to watch it yawn. Drinks a quarter
+    text dearer, and the word spreads (renown in the ledger).
+    at bar
+    near mimic 2
+    price 1.25
+    mood 0.05
+    map Cheer out 0.5 radius 2
+end
+
+combo hoardwatch
+    name Sleeping on the hoard
+    text A mimic beside a coin hoard curls up on it, content: a great deal of cheer.
+    at mimic
+    near hoard 1
+    map Cheer out 1 radius 2
+end
+
+combo fairyring
+    name Fairy ring
+    text A mushroom bed with two more beside it: the ring keeps its own damp.
+    at mushbed
+    near mushbed 1 2
+    map Damp out 0.3 radius 1
+end
+
+combo quietbed
+    name Hush in the dormitory
+    text A feather bed where the noise is under 2: a deeper sleep.
+    at bed
+    if map Noise less 2
+    relief 1.2
+    mood 0.08
+end
+
 # ---------- guests ----------
 
 guest adventurer
@@ -245,6 +783,7 @@ guest adventurer
     need Rest 0.5 20
     dislike map Noise greater 10 0.004
     dislike map Dirt greater 12 0.004
+    like map Cheer greater 3 0.003
     map Noise out 0.4
     map Dirt out 0.05
     model character-knight
@@ -260,7 +799,9 @@ guest dwarf
     need Thirst 1.4 60
     need Hunger 0.5 20
     need Rest 0.4 10
+    need Grime 0.35 20
     dislike map Dirt greater 20 0.004
+    like map Heat greater 4 0.002
     map Noise out 0.8
     map Dirt out 0.05
     model character-worker
@@ -276,9 +817,12 @@ guest wizard
     need Thirst 0.3 10
     need Hunger 0.5 40
     need Rest 0.9 50
+    need Boredom 0.45 15
     dislike map Noise greater 4 0.01
     dislike map Dirt greater 6 0.006
     dislike map Heat less 1 0.003
+    dislike map Damp greater 4 0.005
+    like map Cheer greater 2 0.003
     map Noise out 0.1
     model character-female-c
 end
@@ -292,9 +836,61 @@ guest goblin
     need Thirst 0.8 30
     need Hunger 0.9 50
     need Rest 0.2 0
+    like map Dirt greater 6 0.002
     map Noise out 0.6
     map Dirt out 0.3
     model character-zombie
+end
+
+guest gambler
+    name Card sharp
+    weight 3
+    if global Reputation atLeast 8
+    purse 40 110
+    stay 80 140
+    patience 30
+    need Boredom 0.8 45
+    need Thirst 0.9 30
+    need Hunger 0.3 10
+    like map Noise greater 3 0.002
+    dislike map Damp greater 6 0.003
+    map Noise out 0.8
+    model character-male-c
+end
+
+guest delver
+    name Returning delver
+    weight 3
+    if global Reputation atLeast 15
+    purse 40 100
+    stay 90 150
+    patience 30
+    need Wounds 0.15 50
+    need Grime 0.3 40
+    need Thirst 0.9 30
+    need Hunger 0.5 30
+    need Rest 0.6 25
+    like map Cheer greater 2 0.003
+    map Noise out 0.5
+    map Dirt out 0.2
+    model character-raider
+end
+
+guest pilgrim
+    name Pilgrim
+    weight 2
+    if global Reputation atLeast 30
+    purse 25 60
+    stay 100 160
+    patience 40
+    need Wounds 0.35 25
+    need Hunger 0.5 30
+    need Rest 0.7 30
+    need Grime 0.2 30
+    dislike map Noise greater 6 0.006
+    like map Cheer greater 3 0.005
+    map Noise out 0.1
+    model character-female-a
 end
 
 # ---------- the ledger: the incremental layer (idle.toml, params.toml, ledger.idle) ----------
@@ -302,16 +898,44 @@ end
 idle ledger
     tick 0.25                            # seconds of the ledger per tick of the night
     share Gold                           # one purse for the inn and the ledger
+    share Mushrooms                      # foragers bring mushrooms to the inn's stores
     feed Served served
     feed Renown happy                    # a happy guest spreads the word
     feed Renown angry -0.5               # an angry one unsays some of it
+    feed Renown combo mimicbar 0.25      # and everyone talks about the mimic
+    feed Lore service read               # guests' tales, written down
+    feed Lore service chart 2
+    feed Lore combo quiet 0.5
+    feed Faith service blessing
+    feed Faith combo candlelit 0.5
+    feed Faith combo sanctified 0.5
     price ale 1 + 0.5 * Stout
     price stew 1 + 0.4 * Spices
+    price tonic 1 + 0.5 * Copper
+    price blessing 1 + 0.5 * Relics
+    price soak 1 + 0.3 * Bathsalts
+    price dice 1 + 0.3 * HouseRules
+    price cards 1 + 0.3 * HouseRules
     price * 1 + 0.05 * Legend
+    price * 1 + 0.1 * Guildhall + 0.1 * Charter
+    price * 1 + 0.25 * lastorders
     arrive (1 + 0.25 * Signboard) * (1 + bell)
+    arrive (1 + 0.25 * Criers) * (1 + 0.03 * Guide) * (1 + 0.1 * Charter)
     patience 1 + 0.5 * Benches
+    patience 1 + 0.25 * Lanterns
     unlock bed Featherbeds
-    restart sell                         # selling the inn starts the building over
+    unlock maptable Cartography
+    unlock vault Strongroom
+    unlock mimic MimicTamer
+    unlock congregation Tithes
+    boost snug 1 + Hearthsong
+    boost steam 1 + Bathsalts
+    boost candlelit 1 + 0.5 * Relics
+    boost quiet 1 + 0.5 * Archive
+    boost mimicbar 1 + GildedCollar
+    boost hoardwatch 1 + GildedCollar
+    set Blessed blessed                  # the inn's global Blessed: 1 once the house is blessed
+    restart sell charter                 # selling the inn, or chartering a guild, starts the building over
 end
 
 # ---------- how it looks (read by the browser game, not by the engine) ----------

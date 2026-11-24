@@ -2,7 +2,7 @@
 # It runs through the dock shift, through pauses and while you are away; at station night, with
 # the ring's ticks. inn.inn's `idle` block says how it meets the ring.
 name = "The Slow Orbit's contracts"
-description = "Drones, relays and mining claims work for the ring while you are away; refits make it better; sell its charter."
+description = "Drones, tugs, probes, skiffs and mining claims work for the ring while you are away; refits make it better; sell its charter, then float a consortium."
 scripts = ["contracts.idle"]
 tick = 1
 offline_max = 28800

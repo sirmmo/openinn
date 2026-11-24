@@ -1,18 +1,21 @@
 # The Slow Orbit: a bar and bunkhouse on a refuelling ring at the edge of the Tessel mining belt.
 # Between dock shifts you build out the ring and refit it; at station night the airlock opens and
-# pilots, miners, courier robots and the odd envoy come aboard: thirsty, hungry, tired, or flat.
-# The economy (brewing, printing meals, buying rations, scrubbing the air) is in economy.gbx.
+# pilots, miners, courier robots and the odd envoy come aboard: thirsty, hungry, tired, flat,
+# bored stiff, gritty with belt dust or carrying a rad dose home.
+# The economy (brewing, printing meals, growing greens, synthesising med gel, reclaiming water,
+# scrubbing the air, the comfort the decor gives off) is in economy.gbx.
 
 inn ring
     name The Slow Orbit
     grid 12 9
     entrance 6 0 airlock        # the docking airlock
     money Credits
-    reputation Rating 3         # a delighted guest adds 3, a furious one takes 3 away
+    reputation Rating 1.5       # a delighted guest adds 1.5, a furious one takes 1.5 away
     start Credits 320
     start Rating 5
     start Fizz 10               # the tanks and lockers are stocked for the first night
     start Rations 8
+    start Water 6
     nights 7                    # a season
     guests 14                   # at most this many aboard at once
     levels 2 up                 # a season: this deck and one above, by stairwells
@@ -47,7 +50,8 @@ layer Noise
     colour ff9f1c
 end
 
-# Everyone who breathes adds to it; it barely leaks away on its own, so the ring needs scrubbers.
+# Everyone who breathes adds to it; it barely leaks away on its own, so the ring needs scrubbers
+# (and the hydroponic racks and fern planters drink a little of it).
 layer CO2
     decay 0.01
     diffuse 0.25
@@ -55,14 +59,28 @@ layer CO2
     colour 5ee0c0
 end
 
+# What planters, lamps, screens and the drift shrine give off: the ring feels lived in. Tourists,
+# envoys and pilgrims like it.
+layer Comfort
+    decay 0.15
+    diffuse 0.1
+    max 15
+    colour f2c94c
+end
+
 # ---------- rooms (cost per cell built) ----------
+# `finish` lines are floors the player can lay over the plain one: `finish <id> <model> <cost> <name>`.
 
 room airlock
     name Airlock deck
     cost 6
     colour 8a93a8
     floor floor-detail
-    dwellings hall corridor stairhall gallery secret-passage lookout           # Dwellings rooms imported as this
+    text Where ships dock and guests come aboard. Charging posts and scrubbers fit here.
+    finish plates floor 3 Bare plates
+    finish chevrons floor-panel-end 4 Hazard chevrons
+    finish grid floor-panel-corner 4 Corner grid
+    dwellings hall corridor stairhall secret-passage           # Dwellings rooms imported as this
 end
 
 room lounge
@@ -70,7 +88,11 @@ room lounge
     cost 10
     colour f29b38
     floor floor-panel
-    dwellings living-room room chapel library study trophy-room observatory greenhouse studio *
+    text The heart of the ring: drinks counters, mess tables, booths and grav recliners.
+    finish ribbed floor-panel-straight 4 Ribbed deck
+    finish inlay floor-detail 5 Inlaid plates
+    finish plates floor 3 Bare plates
+    dwellings living-room room *
 end
 
 room galley
@@ -78,7 +100,10 @@ room galley
     cost 12
     colour e4cf4a
     floor floor-panel-straight
-    dwellings kitchen workshop laboratory
+    text Food printers and cold stores; the stout synth too, once you have the recipe.
+    finish wash floor 3 Wash-down plates
+    finish tiles floor-panel 4 Tiled panels
+    dwellings kitchen workshop
 end
 
 room hold
@@ -86,7 +111,10 @@ room hold
     cost 8
     colour 6b7590
     floor floor
-    dwellings cellar storage vault armoury attic bathroom
+    text Fizz tanks, cold stores, gel synthesisers and water reclaimers: the ring's stores.
+    finish grip floor-detail 3 Grip plates
+    finish lanes floor-panel-end 4 Loading lanes
+    dwellings cellar storage vault armoury attic
 end
 
 room cabins
@@ -94,7 +122,78 @@ room cabins
     cost 10
     colour 5d86e0
     floor floor-panel
+    text Sleep pods and cabin berths. Keep them quiet and homely.
+    finish soft floor-corner 4 Soft corners
+    finish quiet floor-panel-straight 4 Quiet decking
     dwellings bedroom
+end
+
+room hydro
+    name Hydroponics bay
+    cost 12
+    colour 6fcf6b
+    floor floor-panel-corner
+    text Racks of greens under grow-lights: they eat CO2, and the tables serve fresh bowls instead of printed meals.
+    finish drains floor-detail 3 Drain grates
+    finish rows floor-panel-straight 4 Bed rows
+    dwellings greenhouse
+end
+
+room medbay
+    name Med bay
+    cost 14
+    colour e86a8a
+    floor floor
+    text Med pods flush the rad dose out of belt miners and salvagers; gel synthesisers keep them stocked.
+    finish sterile floor-panel 4 Sterile panels
+    finish ward floor-panel-corner 4 Ward grid
+    dwellings laboratory
+end
+
+room viewport
+    name Observation lounge
+    cost 12
+    colour 7a6ee0
+    floor floor-panel-end
+    text A long window on the belt: viewport benches and star-chart tables for the bored and the curious.
+    finish dark floor 3 Dark plates
+    finish ring floor-corner 5 Ring deck
+    finish inlay floor-detail 5 Inlaid plates
+    dwellings observatory lookout gallery
+end
+
+room simden
+    name Sim den
+    cost 12
+    colour c04fd0
+    floor floor-panel-straight
+    text Game consoles and, with a licence, sim rigs. Loud: keep it away from the cabins.
+    finish arena floor-panel-corner 4 Arena grid
+    finish lanes floor-panel-end 4 Lit lanes
+    dwellings studio trophy-room
+end
+
+room spa
+    name Wash deck
+    cost 12
+    colour 4fb8d0
+    floor floor-corner
+    text Sonic showers and steam tubs scrub off the belt grime.
+    finish slats floor-panel-straight 4 Steam slats
+    finish wet floor 3 Wet plates
+    dwellings bathroom
+end
+
+room chapel
+    name Chapel of the drift
+    cost 14
+    colour d8c8a0
+    floor floor-detail
+    text A quiet room for the long-haul faithful, who keep vigil for ships lost in the drift. Needs the rite (Contracts).
+    finish nave floor-panel-end 4 Nave runner
+    finish quiet floor-panel 4 Quiet panels
+    finish plates floor 3 Bare plates
+    dwellings chapel library study
 end
 
 # ---------- needs ----------
@@ -119,14 +218,31 @@ need Charge
     urgent 50
 end
 
+need Boredom
+    name Boredom
+    urgent 55
+end
+
+need Rads
+    name Rad dose
+    urgent 50
+end
+
+need Grime
+    name Belt grime
+    urgent 55
+end
+
 # ---------- furniture and machines ----------
-# Model hints are parts of the Space Station Kit: `name:x:z:degrees:scale`, x and z in cells.
+# Model hints are parts of the Space Station Kit (and a few of the Furniture Kit's plants, lamps
+# and wash fittings): `name:x:z:degrees:scale:y`, x, z and y in cells.
 
 unit bar
     name Drinks counter
     in lounge
     cost 50
     seats 3
+    text Pours fizz. Two side by side make a long bar; a starfield screen beside it lights it up.
     model table-large computer-screen:0:-0.15:0:0.7 chair-cushion:-0.28:0.32:180 chair-cushion:0.28:0.32:180
 end
 
@@ -135,7 +251,26 @@ unit table
     in lounge
     cost 20
     seats 2
+    text Serves fresh greens bowls while the racks have greens, printed meals otherwise. Three together make a mess hall; near a hydroponic rack, a garden table.
     model table chair:0:-0.3:0 chair:0:0.3:180
+end
+
+unit booth
+    name Lounge booth
+    in lounge viewport
+    cost 45
+    seats 4
+    text Four seats: greens bowls or printed meals, and Tessel stout once you brew it. A glow lamp over it makes a snug.
+    model table chair-cushion-headrest:-0.2:-0.33:0 chair-cushion-headrest:0.2:-0.33:0 chair-cushion-headrest:-0.2:0.33:180 chair-cushion-headrest:0.2:0.33:180
+end
+
+unit armchair
+    name Grav recliners
+    in lounge viewport cabins chapel
+    cost 30
+    seats 2
+    text A cheap doze for the tired, when the pods are full.
+    model chair-armrest-headrest:-0.2:0.05:180 chair-armrest-headrest:0.2:0.05:180
 end
 
 unit printer
@@ -143,6 +278,7 @@ unit printer
     in galley
     cost 60
     seats 0
+    text Prints meals from rations while the airlock is open, and hums.
     model computer-system
 end
 
@@ -151,6 +287,7 @@ unit locker
     in galley hold
     cost 30
     seats 0
+    text Buys rations from passing freighters.
     model container-wide
 end
 
@@ -159,14 +296,25 @@ unit tanks
     in hold
     cost 40
     seats 0
+    text Brews fizz for the drinks counters.
     model container-flat:0:-0.1 container:0.3:0.25:0:0.8
+end
+
+unit vat
+    name Stout synth
+    in galley hold
+    cost 70
+    seats 0
+    text Ferments rations into Tessel stout for the booths. Needs the recipe (Contracts).
+    model container:-0.2:-0.1 container-tall:0.25:0.1:90:0.8 pipe-end-colored:-0.2:0.3
 end
 
 unit scrubber
     name Air scrubber
-    in airlock lounge galley cabins
+    in airlock lounge galley cabins hydro medbay viewport simden spa chapel
     cost 25
     seats 0
+    text Pulls the CO2 out of the rooms around it, for a little power.
     model container-tall pipe-ring-colored:0:0:0:1.3
 end
 
@@ -175,6 +323,7 @@ unit charger
     in airlock lounge
     cost 35
     seats 2
+    text Recharges courier robots. Two side by side make a charging bay.
     model computer
 end
 
@@ -184,6 +333,7 @@ unit stairwell
     cost 40
     seats 0
     stairs                      # joins this cell to the deck above
+    text Opens the deck above.
     model stairs:0:0.1 stairs-handrail:0:0.1
 end
 
@@ -192,6 +342,7 @@ unit pod
     in cabins
     cost 30
     seats 2
+    text Two sleep pods. Quiet and homely cabins rest guests better.
     model bed-single-cover:-0.2:0 bed-single-cover:0.2:0
 end
 
@@ -200,10 +351,145 @@ unit berth
     in cabins
     cost 45
     seats 1
+    text A private berth: a full night's rest. Needs cabin berths (Contracts).
     model bed-double-cover:-0.15:0
 end
 
+unit planter
+    name Fern planter
+    cost 18
+    seats 0
+    text Decor: gives off comfort and drinks a little CO2. Stands anywhere.
+    model pottedPlant:-0.1:0.12:0:0.8 plantSmall1:0.28:-0.25:0:2.5 plantSmall3:-0.3:-0.3:0:2.5
+end
+
+unit lamp
+    name Glow lamp
+    cost 15
+    seats 0
+    text Decor: a warm light that gives off comfort. Stands anywhere.
+    model lampRoundFloor:-0.05:0.05
+end
+
+unit screen
+    name Starfield screen
+    in airlock lounge cabins viewport simden medbay spa chapel
+    cost 30
+    seats 0
+    text Decor: a slow starfield that gives off comfort, for a little power.
+    model display-wall-wide:0:-0.3
+end
+
+unit hydrorack
+    name Hydroponic rack
+    in hydro
+    cost 45
+    seats 0
+    text Grows greens for fresh bowls (at greens counters, mess tables and booths), and eats CO2.
+    model container-flat-open:-0.22:0:0:0.9 container-flat-open:0.24:0:0:0.9 plantSmall1:-0.22:-0.18:0:2.5:0.38 plantSmall3:-0.22:0.15:0:2.5:0.38 plantSmall2:0.24:-0.15:0:2.5:0.38 plantSmall1:0.24:0.18:0:2.5:0.38
+end
+
+unit greenbar
+    name Greens counter
+    in hydro lounge
+    cost 40
+    seats 2
+    text Serves fresh greens bowls, while the racks keep up. Seats two more at the racks.
+    model table-large plantSmall1:-0.25:-0.1:0:2:0.3 plantSmall3:0.25:-0.1:0:2:0.3 chair-cushion:-0.22:0.33:180 chair-cushion:0.22:0.33:180
+end
+
+unit medpod
+    name Med pod
+    in medbay
+    cost 70
+    seats 1
+    text Flushes a rad dose out, for a dose of med gel.
+    model bed-single:-0.1:0.05 computer-screen:0.32:-0.3:0:0.6
+end
+
+unit gelsynth
+    name Gel synthesiser
+    in medbay hold
+    cost 50
+    seats 0
+    text Synthesises med gel for the med pods. Beside a med pod, it makes a triage bay.
+    model computer-system:0:-0.15 container:0.3:0.25:0:0.6 pipe-ring-colored:-0.3:0.25:0:0.7
+end
+
+unit viewbench
+    name Viewport bench
+    in viewport
+    cost 35
+    seats 3
+    text A long cheap look at the belt for the bored. With a star-chart table near, a window seat.
+    model chair-armrest-headrest:-0.32:0.1:180 chair-armrest-headrest:0:0.1:180 chair-armrest-headrest:0.32:0.1:180 rail:0:-0.4
+end
+
+unit starmap
+    name Star-chart table
+    in viewport lounge
+    cost 55
+    seats 2
+    text A tour of the belt's charts: cures boredom, and the guests trade you charts for it.
+    model table-display-planet:0.12:-0.12 chair:-0.4:0:90 chair:0.4:0:270
+end
+
+unit arcade
+    name Game console
+    in simden lounge
+    cost 40
+    seats 1
+    text A quick, loud round for the bored. Three in a row make an arcade row.
+    model computer-system:0:-0.1 chair:0:0.3:180:0.9
+end
+
+unit simrig
+    name Sim rig
+    in simden
+    cost 90
+    seats 1
+    text A full sim run: the best cure for boredom on the ring. Needs a licence (Contracts).
+    model computer-wide:0:-0.25 chair-armrest-headrest:0:0.15:180 display-wall:0:-0.42:0:0.8:0.35
+end
+
+unit shower
+    name Sonic shower
+    in spa cabins
+    cost 30
+    seats 1
+    text A quick dry scrub: takes most of the belt grime off.
+    model shower:-0.21:0.21
+end
+
+unit steam
+    name Steam tub
+    in spa
+    cost 60
+    seats 2
+    text A long hot soak, for reclaimed water. Needs steam plumbing (Contracts).
+    model bathtub:-0.45:0.21 pipe:0.35:-0.35 pipe-ring-colored:0.35:-0.35:0:1:0.2
+end
+
+unit reclaimer
+    name Water reclaimer
+    in spa hold
+    cost 40
+    seats 0
+    text Reclaims water for the steam tubs.
+    model container-tall:-0.1:0 pipe:0.3:0.3 pipe-ring:0.3:0.3:0:1:0.15 pipe-end-colored:0.3:-0.3
+end
+
+unit shrine
+    name Drift shrine
+    in chapel
+    cost 50
+    seats 3
+    text A quiet vigil for the ships lost in the drift; gives off comfort. Two glow lamps near it light the vigil.
+    model wall-banner:0:-0.42 container-flat:0:-0.1:0:0.7 lampRoundFloor:-0.35:0.25:0:0.7 lampRoundFloor:0.35:0.25:0:0.7
+end
+
 # ---------- services ----------
+# A unit gives the first service listed here that meets the guest's need and that it can give.
 
 service fizz
     name A bulb of fizz
@@ -215,9 +501,28 @@ service fizz
     map Noise out 3 radius 1
 end
 
+service stout
+    name A mug of Tessel stout
+    at booth
+    need Thirst 80
+    global Stout in 1
+    price 6
+    time 10
+    map Noise out 2 radius 1
+end
+
+service fresh
+    name A fresh greens bowl
+    at greenbar table booth
+    need Hunger 85
+    global Greens in 1
+    price 7
+    time 10
+end
+
 service meal
     name A printed meal
-    at table
+    at table booth
     need Hunger 70
     global Meals in 1
     price 5
@@ -241,12 +546,233 @@ service berth
     time 40
 end
 
+service doze
+    name A doze in a recliner
+    at armchair
+    need Rest 50
+    price 2
+    time 25
+end
+
 service charge
     name A recharge
     at charger
     need Charge 90
     price 4
     time 12
+end
+
+service stargaze
+    name An hour at the viewport
+    at viewbench
+    need Boredom 60
+    price 2
+    time 25
+end
+
+service charts
+    name A star-chart tour
+    at starmap
+    need Boredom 80
+    price 5
+    time 15
+    map Noise out 0.5
+end
+
+service arcade
+    name A round on the console
+    at arcade
+    need Boredom 50
+    price 3
+    time 8
+    map Noise out 3 radius 1
+end
+
+service sim
+    name A sim run
+    at simrig
+    need Boredom 100
+    price 9
+    time 20
+    map Noise out 1.5
+end
+
+service vigil
+    name A quiet vigil
+    at shrine
+    need Boredom 90
+    price 2
+    time 30
+end
+
+service flush
+    name A rad flush
+    at medpod
+    need Rads 100
+    global Medgel in 1
+    price 12
+    time 30
+end
+
+service sonic
+    name A sonic shower
+    at shower
+    need Grime 70
+    price 3
+    time 6
+end
+
+service steam
+    name A steam soak
+    at steam
+    need Grime 100
+    global Water in 1
+    price 7
+    time 20
+end
+
+# ---------- combos: furniture that works better together ----------
+# `near` is on the same deck, within that many cells (diagonals count); `near a,b 1 2` means two
+# of either. The contracts can boost some (`boost` in the idle block) and unlock the sim league.
+# (No `room` lines: inside a combo, `room lounge` reads as the start of a room block. The units
+# that matter stand in one kind of room anyway.)
+
+combo barlight
+    name Lit counter
+    text A starfield screen beside a drinks counter: fizz sells for 15% more and guests linger happily.
+    at bar
+    near screen 1
+    price 1.15
+    mood 0.03
+end
+
+combo longbar
+    name Long bar
+    text Two drinks counters side by side pour in two thirds of the time.
+    at bar
+    near bar 1
+    time 0.7
+end
+
+combo messhall
+    name Mess hall
+    text Three mess tables together: meals come in two thirds of the time, and it gets loud.
+    at table
+    near table 1 2
+    time 0.7
+    map Noise out 0.3
+end
+
+combo garden
+    name Garden table
+    text A table, booth or greens counter within two cells of a hydroponic rack: a fifth dearer, and guests love it.
+    at table booth greenbar
+    near hydrorack 2
+    price 1.2
+    mood 0.04
+end
+
+combo snug
+    name Lamplit snug
+    text A glow lamp beside a lounge booth: everything at it sells for a quarter more.
+    at booth
+    near lamp 1
+    price 1.25
+    mood 0.03
+end
+
+combo freshair
+    name Fresh-air lounge
+    text Two fern planters within two cells of a counter, table or booth, and the air under 4 CO2: guests leave happier.
+    at bar table booth
+    near planter 2 2
+    if map CO2 less 4
+    mood 0.04
+end
+
+combo quietberth
+    name Quiet berth
+    text A pod or berth where the noise stays under 2: a third more rest, and guests wake up pleased.
+    at pod berth
+    if map Noise less 2
+    relief 1.3
+    mood 0.05
+end
+
+combo homely
+    name Homely cabin
+    text A pod, berth or recliner beside a fern planter or a glow lamp: guests settle in, and the cabin feels lived in.
+    at pod berth armchair
+    near planter,lamp 1
+    mood 0.06
+    map Comfort out 0.15
+end
+
+combo windowseat
+    name Window seat
+    text A viewport bench within two cells of a star-chart table: half as dear again, and a quarter more relief.
+    at viewbench
+    near starmap 2
+    price 1.5
+    relief 1.25
+    mood 0.05
+end
+
+combo arcaderow
+    name Arcade row
+    text A game console with two more beside it: 30% dearer, and very loud.
+    at arcade
+    near arcade 1 2
+    price 1.3
+    mood 0.04
+    map Noise out 0.5 radius 1
+end
+
+combo league
+    name Sim league
+    text Two sim rigs side by side with a starfield screen near, once the rating reaches 40: league nights, half as dear again. Needs the league charter (Contracts).
+    at simrig
+    near simrig 1
+    near screen 2
+    if global Rating atLeast 40
+    price 1.5
+    mood 0.05
+end
+
+combo triage
+    name Triage bay
+    text A med pod beside a gel synthesiser: flushes take 60% of the time and clear a fifth more.
+    at medpod
+    near gelsynth 1
+    time 0.6
+    relief 1.2
+end
+
+combo fernsteam
+    name Fern steam
+    text A shower or steam tub beside a fern planter: a fifth more relief, happier guests, and comfort all round.
+    at shower steam
+    near planter 1
+    relief 1.2
+    mood 0.07
+    map Comfort out 0.2
+end
+
+combo lampvigil
+    name Lamplit vigil
+    text A drift shrine with two glow lamps beside it: the faithful leave glowing.
+    at shrine
+    near lamp 1 2
+    mood 0.1
+    map Comfort out 0.4 radius 1
+end
+
+combo chargebay
+    name Charging bay
+    text Two charging posts side by side: recharges take 60% of the time.
+    at charger
+    near charger 1
+    time 0.6
 end
 
 # ---------- guests ----------
@@ -260,8 +786,11 @@ guest pilot
     need Thirst 0.9 45
     need Hunger 0.6 30
     need Rest 0.5 20
+    need Boredom 0.3 10
+    need Grime 0.15 10
     dislike map Noise greater 10 0.004
     dislike map CO2 greater 12 0.004
+    like map Comfort greater 2 0.001
     map Noise out 0.4
     map CO2 out 0.25
     model character-female-a
@@ -288,6 +817,8 @@ guest miner
     need Thirst 1.4 60
     need Hunger 0.5 20
     need Rest 0.4 10
+    need Rads 0.3 10
+    need Grime 0.35 20
     dislike map CO2 greater 20 0.004
     map Noise out 0.8
     map CO2 out 0.35
@@ -304,8 +835,10 @@ guest envoy
     need Thirst 0.3 10
     need Hunger 0.5 40
     need Rest 0.9 50
+    need Boredom 0.4 20
     dislike map Noise greater 4 0.01
     dislike map CO2 greater 5 0.006
+    like map Comfort greater 2 0.002
     map Noise out 0.1
     map CO2 out 0.15
     model character-alien
@@ -325,6 +858,59 @@ guest smuggler
     model character-raider
 end
 
+guest tourist
+    name Belt tourist
+    weight 3
+    if global Rating atLeast 15
+    purse 40 90
+    stay 100 160
+    patience 30
+    need Boredom 0.9 45
+    need Thirst 0.4 20
+    need Hunger 0.5 30
+    need Rest 0.3 0
+    dislike map Noise greater 8 0.004
+    dislike map CO2 greater 10 0.004
+    like map Comfort greater 1.5 0.003
+    map Noise out 0.5
+    map CO2 out 0.25
+    model character-female-c
+end
+
+guest salvager
+    name Hull salvager
+    weight 2
+    if global Rating atLeast 20
+    purse 35 80
+    stay 110 170
+    patience 35
+    need Rads 0.6 35
+    need Grime 0.7 40
+    need Thirst 0.9 30
+    need Hunger 0.7 30
+    dislike map CO2 greater 15 0.003
+    map Noise out 0.6
+    map CO2 out 0.35
+    model character-male-e
+end
+
+guest pilgrim
+    name Drift pilgrim
+    weight 1.5
+    if global Rating atLeast 40
+    purse 25 60
+    stay 120 180
+    patience 40
+    need Boredom 0.7 50
+    need Rest 0.6 20
+    need Hunger 0.3 10
+    dislike map Noise greater 3 0.008
+    like map Comfort greater 2 0.004
+    map Noise out 0.1
+    map CO2 out 0.2
+    model character-male-a
+end
+
 # ---------- contracts: the incremental layer (idle.toml, params.toml, contracts.idle) ----------
 
 idle contracts
@@ -333,20 +919,52 @@ idle contracts
     feed Served served
     feed Standing happy
     feed Standing angry -0.5
+    feed Charts service charts           # guests trade star charts for a tour, a sim run...
+    feed Charts service sim
+    feed Charts service stargaze 0.5
+    feed Charts combo windowseat 0.5
+    feed Charts combo league 1
+    feed Favours service flush           # ... and owe you a favour for a flush or a vigil
+    feed Favours service vigil
+    feed Favours service steam 0.5
+    feed Favours combo triage 0.5
+    feed Favours combo lampvigil 0.5
     price fizz 1 + 0.5 * Still
     price meal 1 + 0.4 * Flavours
+    price fresh 1 + 0.3 * NutrientFilm
     price charge 1 + 0.5 * Firmware
-    price * 1 + 0.05 * Charters
-    arrive (1 + 0.25 * Beacon) * (1 + hail)
+    price stargaze 1 + 0.5 * Lenses
+    price flush 1 + 0.25 * Protocol
+    price * 1 + min(0.05 * Charters, 0.5)  # prices rise with charters and shares, but only so far: purses do not
+    price * 1 + min(0.1 * Shares, 0.3)
+    price * 1 + 0.25 * gala
+    price * 1 + min(0.002 * Charts, 0.2) * Exchange
+    arrive (1 + 0.25 * Beacon + 0.25 * Chain) * (1 + hail)
     patience 1 + 0.5 * Couches
+    patience 1 + 0.3 * Accord
+    boost longbar 1 + 0.5 * Taproom
+    boost garden 1 + 0.5 * Fernseed
+    boost homely 1 + 0.5 * Fernseed
+    boost fernsteam 1 + 0.5 * Fernseed
+    boost freshair 1 + 0.5 * Fernseed
+    boost windowseat 1 + Lenses
+    boost arcaderow 1 + Scoreboard
+    boost quietberth 1 + Baffles
+    boost triage 1 + 0.5 * Protocol
+    boost league 1 + min(Charts, 100) / 100
     unlock berth Berths
-    restart charter                      # selling the charter starts the building over
+    unlock vat StoutRecipe
+    unlock simrig SimLicence
+    unlock steam Plumbing
+    unlock chapel Rite
+    unlock league League
+    restart charter consortium           # selling the charter (or floating the consortium) starts the building over
 end
 
 # ---------- how it looks (read by the browser game, not by the engine) ----------
 
 look station
-    models station glb                   # web/models/station/<name>.glb: Kenney Space Station Kit
+    models station glb                   # web/models/station/<name>.glb: Kenney Space Station Kit (and Furniture Kit)
     characters guests glb                # web/models/guests/<name>.glb: Kenney Mini Characters
     scale 4                              # the kit's pieces are one unit wide; a cell is four
     furniture 3
@@ -365,7 +983,7 @@ look station
     light dfe8ff 1c2340
     loading Pressurising the airlock
     arrive comes aboard through the airlock
-    seeds orbit comet nebula airlock quasar rivet ion drift beacon hull tessel
+    seeds orbit comet nebula airlock quasar rivet ion drift beacon hull tessel fern vigil
     levelname Deck
     wallname Bulkhead
     doorname Hatch

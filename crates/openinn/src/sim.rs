@@ -115,6 +115,23 @@ pub enum Command {
         z: usize,
         unit: String,
     },
+    /// Turn a unit a quarter round, clockwise (free, while building).
+    Turn {
+        x: usize,
+        y: usize,
+        #[serde(default)]
+        z: usize,
+    },
+    /// Lay one of its room's finishes on a dug cell (`""`: the plain floor back, free).
+    Paint {
+        x: usize,
+        y: usize,
+        #[serde(default)]
+        z: usize,
+        finish: String,
+    },
+    /// Give the inn a name of the player's own.
+    Rename { name: String },
     /// Take a unit away; half its cost comes back.
     Remove {
         x: usize,
@@ -223,6 +240,8 @@ impl std::fmt::Debug for Idle {
 struct Effects {
     /// Each service's price, times this.
     price: Vec<f64>,
+    /// How strongly each combo works (1: as written).
+    combo: Vec<f64>,
     arrive: f64,
     patience: f64,
     locked: Vec<Lockable>,
@@ -277,6 +296,14 @@ pub struct Game {
     unit_at: Vec<Option<usize>>,
     unit_kind: Vec<usize>,
     unit_cell: Vec<usize>,
+    /// Quarter turns of each unit, clockwise.
+    unit_rot: Vec<u8>,
+    /// Combos whose furniture and room hold for each unit (their tests are checked when used).
+    combo_on: Vec<Vec<usize>>,
+    /// The finish laid on each cell, if any (an index into its room's finishes).
+    finish: Vec<Option<usize>>,
+    /// The inn's name, if the player gave it one.
+    pub name: Option<String>,
     seated: Vec<u32>,
     guests: Vec<Guest>,
     next_guest: u32,
@@ -330,6 +357,7 @@ impl Game {
         };
         let n = width * height * levels;
         let rs_services = rs.services.len();
+        let rs_combos = rs.combos.len();
         let gb = State::new(&rs.rules, 0, 1);
         let mut g = Game {
             rs,
@@ -349,6 +377,10 @@ impl Game {
             unit_at: vec![None; n],
             unit_kind: Vec::new(),
             unit_cell: Vec::new(),
+            unit_rot: Vec::new(),
+            combo_on: Vec::new(),
+            finish: vec![None; n],
+            name: None,
             seated: Vec::new(),
             guests: Vec::new(),
             next_guest: 1,
@@ -363,6 +395,7 @@ impl Game {
             idle: None,
             fx: Effects {
                 price: vec![1.0; rs_services],
+                combo: vec![1.0; rs_combos],
                 arrive: 1.0,
                 patience: 1.0,
                 locked: Vec::new(),
@@ -554,8 +587,13 @@ impl Game {
                 None => price.iter_mut().for_each(|p| *p *= k),
             }
         }
+        let mut combo = vec![1.0; self.rs.combos.len()];
+        for (c, e) in &b.boosts {
+            combo[*c] *= eval(e, 1.0);
+        }
         self.fx = Effects {
             price,
+            combo,
             arrive: b.arrive.iter().map(|e| eval(e, 1.0)).product(),
             patience: b.patience.iter().map(|e| eval(e, 1.0)).product(),
             locked: b
@@ -616,6 +654,7 @@ impl Game {
         let mut fresh = Game::build(self.rs.clone(), &format!("{}#{runs}", self.seed), self.mode);
         fresh.seed = std::mem::take(&mut self.seed);
         fresh.runs = runs;
+        fresh.name = self.name.take();
         fresh.idle = self.idle.take();
         fresh.commands = std::mem::take(&mut self.commands);
         let mut events = std::mem::take(&mut self.events);
@@ -639,6 +678,73 @@ impl Game {
     /// A service's price now.
     pub fn price(&self, s: usize) -> f64 {
         (self.rs.services[s].price * self.fx.price[s] * 100.0).round() / 100.0
+    }
+
+    /// The combos that hold for a unit now.
+    fn active(&self, u: usize) -> impl Iterator<Item = usize> + '_ {
+        let cell = self.unit_cell[u];
+        self.combo_on[u].iter().copied().filter(move |&c| {
+            !self.locked(Lockable::Combo(c))
+                && self.rs.combos[c].tests.iter().all(|t| self.test(t, cell))
+        })
+    }
+
+    /// A combo's multiplier, scaled by how strongly the incremental layer makes it work.
+    fn scaled(&self, c: usize, k: f64) -> f64 {
+        (1.0 + (k - 1.0) * self.fx.combo[c]).max(0.0)
+    }
+
+    /// A service's price at a unit now: its price, times the unit's combos.
+    pub fn unit_price(&self, u: usize, s: usize) -> f64 {
+        let k: f64 = self
+            .active(u)
+            .map(|c| self.scaled(c, self.rs.combos[c].price))
+            .product();
+        (self.rs.services[s].price * self.fx.price[s] * k * 100.0).round() / 100.0
+    }
+
+    /// Works out again which combos each unit's furniture and room allow.
+    fn refresh_combos(&mut self) {
+        let n = self.unit_kind.len();
+        let mut on = vec![Vec::new(); n];
+        for (u, list) in on.iter_mut().enumerate() {
+            if !self.gb.units[u].alive {
+                continue;
+            }
+            let k = self.unit_kind[u];
+            let cell = self.unit_cell[u];
+            let (x, y, z) = self.xyz(cell);
+            for (c, def) in self.rs.combos.iter().enumerate() {
+                if !def.units.contains(&k) {
+                    continue;
+                }
+                if !def.rooms.is_empty() && !self.room[cell].is_some_and(|r| def.rooms.contains(&r))
+                {
+                    continue;
+                }
+                let ok = def.near.iter().all(|(kinds, radius, count)| {
+                    let r = *radius as i64;
+                    let found = (0..n)
+                        .filter(|&v| {
+                            v != u
+                                && self.gb.units[v].alive
+                                && kinds.contains(&self.unit_kind[v])
+                                && {
+                                    let (vx, vy, vz) = self.xyz(self.unit_cell[v]);
+                                    vz == z
+                                        && (vx as i64 - x as i64).abs() <= r
+                                        && (vy as i64 - y as i64).abs() <= r
+                                }
+                        })
+                        .count();
+                    found as u32 >= *count
+                });
+                if ok {
+                    list.push(c);
+                }
+            }
+        }
+        self.combo_on = on;
     }
 
     fn locked(&self, w: Lockable) -> bool {
@@ -711,6 +817,8 @@ impl Game {
         self.unit_at[cell] = Some(u);
         self.unit_kind.push(k);
         self.unit_cell.push(cell);
+        self.unit_rot.push(0);
+        self.combo_on.push(Vec::new());
         self.seated.push(0);
         if self.rs.units[k].stairs {
             if let Some(next) = self.next_level(cell) {
@@ -750,7 +858,12 @@ impl Game {
 
     /// Applies a command; on success it is recorded for the save.
     pub fn apply(&mut self, c: Command) -> Result<Vec<Event>, String> {
-        if self.over && !matches!(c, Command::Idle { .. } | Command::Wait { .. }) {
+        if self.over
+            && !matches!(
+                c,
+                Command::Idle { .. } | Command::Wait { .. } | Command::Rename { .. }
+            )
+        {
             return Err("the season is over".into());
         }
         let ph = &self.rs.phases[self.phase];
@@ -814,6 +927,47 @@ impl Game {
                 }
                 self.pay(kind.cost)?;
                 self.put_unit(cell, k);
+                self.refresh_combos();
+            }
+            Command::Turn { x, y, z } => {
+                if !build {
+                    return Err("you can only turn things while building".into());
+                }
+                let cell = self.at(*x, *y, *z)?;
+                let u = self.unit_at[cell].ok_or("nothing stands there")?;
+                self.unit_rot[u] = (self.unit_rot[u] + 1) % 4;
+            }
+            Command::Paint { x, y, z, finish } => {
+                if !build {
+                    return Err("you can only lay floors while building".into());
+                }
+                let cell = self.at(*x, *y, *z)?;
+                let r = self.room[cell].ok_or("dig there first")?;
+                let room = &self.rs.rooms[r];
+                if finish.is_empty() {
+                    if self.finish[cell].is_none() {
+                        return Err("the floor is plain already".into());
+                    }
+                    self.finish[cell] = None;
+                } else {
+                    let f = room
+                        .finishes
+                        .iter()
+                        .position(|x| x.id == *finish)
+                        .ok_or_else(|| format!("a {} has no finish {finish:?}", room.name))?;
+                    if self.finish[cell] == Some(f) {
+                        return Err("that floor is laid already".into());
+                    }
+                    self.pay(room.finishes[f].cost)?;
+                    self.finish[cell] = Some(f);
+                }
+            }
+            Command::Rename { name } => {
+                let name = name.trim();
+                if name.chars().count() > 40 {
+                    return Err("that name is too long".into());
+                }
+                self.name = (!name.is_empty()).then(|| name.to_string());
             }
             Command::Remove { x, y, z } => {
                 if !build {
@@ -831,6 +985,7 @@ impl Game {
                 self.unit_at[cell] = None;
                 let m = self.rs.inn.money;
                 self.gb.accounts[0][m] += self.rs.units[k].cost / 2.0;
+                self.refresh_combos();
             }
             Command::Wall {
                 x,
@@ -986,6 +1141,20 @@ impl Game {
             self.arrivals(&ph);
             self.move_guests();
         }
+        // Combos that hold give off what they give off.
+        for u in 0..self.unit_kind.len() {
+            if self.combo_on[u].is_empty() {
+                continue;
+            }
+            let at = self.place[self.unit_cell[u]];
+            let active: Vec<usize> = self.active(u).collect();
+            for c in active {
+                for &(m, amount, radius) in &self.rs.combos[c].emits {
+                    let k = self.fx.combo[c];
+                    emit(&self.graph, &mut self.gb.maps[m], at, amount * k, radius);
+                }
+            }
+        }
         step(&self.rs.rules, &self.graph, &mut self.gb);
         if let Some(b) = &self.rs.idle {
             let ms = (b.tick * 1000.0).round() as u64;
@@ -1100,7 +1269,7 @@ impl Game {
         self.rs.services.iter().enumerate().position(|(i, s)| {
             s.need == need
                 && s.units.contains(&k)
-                && self.price(i) <= purse
+                && self.unit_price(u, i) <= purse
                 && s.takes
                     .iter()
                     .all(|t| self.held(u, t.resource) + 1e-9 >= t.amount)
@@ -1164,10 +1333,15 @@ impl Game {
                 self.guests[i].busy = Some((u, left - 1, s));
                 return true;
             }
+            let (mut relief, mut mood) = (1.0, 0.1);
+            for c in self.active(u) {
+                relief *= self.scaled(c, self.rs.combos[c].relief);
+                mood += self.rs.combos[c].mood * self.fx.combo[c];
+            }
             let sv = &self.rs.services[s];
             let g = &mut self.guests[i];
-            g.needs[sv.need] = (g.needs[sv.need] - sv.relief).max(0.0);
-            g.mood = (g.mood + 0.1).min(1.0);
+            g.needs[sv.need] = (g.needs[sv.need] - sv.relief * relief).max(0.0);
+            g.mood = (g.mood + mood).clamp(0.0, 1.0);
             g.busy = None;
             self.seated[u] = self.seated[u].saturating_sub(1);
             return true;
@@ -1191,7 +1365,13 @@ impl Game {
         match self.find(cell, need, self.guests[i].purse) {
             Some((step, u, s)) if step == cell => {
                 let sv = self.rs.services[s].clone();
-                let price = self.price(s);
+                let price = self.unit_price(u, s);
+                let active: Vec<usize> = self.active(u).collect();
+                let time: f64 = active
+                    .iter()
+                    .map(|&c| self.scaled(c, self.rs.combos[c].time).max(0.05))
+                    .product();
+                let time = ((f64::from(sv.time) * time).round() as u32).max(1);
                 for t in &sv.takes {
                     self.take(u, t.resource, t.amount);
                 }
@@ -1200,6 +1380,10 @@ impl Game {
                 self.stats.earned += price;
                 self.feed(FeedEvent::Served, 1.0);
                 self.feed(FeedEvent::Earned, price);
+                self.feed(FeedEvent::Service(s), 1.0);
+                for &c in &active {
+                    self.feed(FeedEvent::Combo(c), 1.0);
+                }
                 self.stats.served += 1;
                 self.seated[u] += 1;
                 for &(map, amount, radius) in &sv.emits {
@@ -1215,7 +1399,7 @@ impl Game {
                 let g = &mut self.guests[i];
                 g.purse -= price;
                 g.waiting = 0;
-                g.busy = Some((u, sv.time, s));
+                g.busy = Some((u, time, s));
                 self.events.push(Event::Serve {
                     guest: g.id,
                     service: sv.id,
@@ -1282,6 +1466,8 @@ impl Game {
                 y,
                 z,
                 room: self.rs.rooms[self.room[c].unwrap()].id.clone(),
+                finish: self.finish[c]
+                    .map(|f| self.rs.rooms[self.room[c].unwrap()].finishes[f].id.clone()),
                 maps: self
                     .gb
                     .maps
@@ -1302,6 +1488,11 @@ impl Game {
                     unit: k.id.clone(),
                     model: k.model.clone(),
                     seated: self.seated[u],
+                    rot: self.unit_rot[u],
+                    combos: self
+                        .active(u)
+                        .map(|c| self.rs.combos[c].id.clone())
+                        .collect(),
                 }
             })
             .collect();
@@ -1338,6 +1529,10 @@ impl Game {
             })
             .collect();
         Snapshot {
+            name: self
+                .name
+                .clone()
+                .unwrap_or_else(|| self.rs.inn.name.clone()),
             day: self.day,
             phase: ph.id.clone(),
             phase_tick: self.phase_tick,
@@ -1364,6 +1559,7 @@ impl Game {
                 .map(|w| match *w {
                     Lockable::Unit(k) => self.rs.units[k].id.clone(),
                     Lockable::Room(r) => self.rs.rooms[r].id.clone(),
+                    Lockable::Combo(c) => self.rs.combos[c].id.clone(),
                 })
                 .collect(),
             run: self.runs,
@@ -1431,6 +1627,7 @@ impl Game {
                 }
                 self.put_unit(cell, k);
             }
+            self.refresh_combos();
         }
         Ok(())
     }
@@ -1442,6 +1639,8 @@ pub struct CellView {
     pub y: usize,
     pub z: usize,
     pub room: String,
+    /// The finish laid here, if any.
+    pub finish: Option<String>,
     /// Each layer's value here, in the order of `Snapshot::layers`.
     pub maps: Vec<f64>,
 }
@@ -1454,6 +1653,10 @@ pub struct UnitView {
     pub unit: String,
     pub model: String,
     pub seated: u32,
+    /// Quarter turns, clockwise.
+    pub rot: u8,
+    /// The combos that hold for it now.
+    pub combos: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1471,6 +1674,8 @@ pub struct GuestView {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Snapshot {
+    /// The inn's name: the player's own, or the ruleset's.
+    pub name: String,
     pub day: u32,
     pub phase: String,
     pub phase_tick: u32,

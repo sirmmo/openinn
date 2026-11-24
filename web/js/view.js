@@ -134,7 +134,12 @@ export class View {
     levelStep = look.level * (inn.down ? -1 : 1);
     this.grid = [inn.width, inn.height, inn.levels];
     const names = new Set([look.wall, look.window?.name, look.decor?.name, look.entrance?.name, look.door].filter(Boolean));
-    for (const r of catalog.rooms) for (const p of parts(r.floor)) names.add(p.name);
+    // Floors (a room's own and the finishes it can have) cast no shadows.
+    const floors = new Set();
+    for (const r of catalog.rooms) {
+      for (const hint of [r.floor, ...(r.finishes || []).map((f) => f.model)]) for (const p of parts(hint)) floors.add(p.name);
+    }
+    for (const n of floors) names.add(n);
     for (const u of catalog.units) for (const p of parts(u.model)) names.add(p.name);
     const guests = new Set(catalog.guests.map((g) => g.model).filter(Boolean));
     const jobs = [
@@ -147,7 +152,7 @@ export class View {
         const gltf = await loader.loadAsync(url);
         gltf.scene.traverse((o) => {
           if (o.isMesh) {
-            o.castShadow = !catalog.rooms.some((r) => parts(r.floor).some((p) => p.name === name));
+            o.castShadow = !floors.has(name);
             o.receiveShadow = true;
           }
         });
@@ -226,7 +231,10 @@ export class View {
     if (this.entranceObj) this.entranceObj.visible = z === 0;
     const on = (k) => +k.split(',')[2] === z;
     for (const [k, c] of this.cells) c.group.visible = on(k);
-    for (const [k, u] of this.units) u.obj.visible = on(k);
+    for (const [k, u] of this.units) {
+      u.obj.visible = on(k);
+      u.mark.visible = on(k) && u.combos.length > 0;
+    }
     for (const [k, w] of this.walls) w.obj.visible = on(k);
     for (const [k, m] of this.landings) m.visible = on(k);
     for (const v of this.guests.values()) v.obj.visible = v.data?.z === z;
@@ -272,13 +280,14 @@ export class View {
       seenCells.add(k);
       const walls = this.wallMask(c.x, c.y, c.z, dug);
       const cur = this.cells.get(k);
-      if (cur && cur.room === c.room && cur.walls === walls) continue;
+      const finish = c.finish || null;
+      if (cur && cur.room === c.room && cur.walls === walls && cur.finish === finish) continue;
       if (cur) this.scene.remove(cur.group);
       const g = this.cellGroup(c, walls);
       g.visible = c.z === this.level;
       this.scene.add(g);
       if (!cur) this.pop(g);
-      this.cells.set(k, { group: g, room: c.room, walls });
+      this.cells.set(k, { group: g, room: c.room, walls, finish });
     }
     for (const [k, v] of this.cells) {
       if (!seenCells.has(k)) {
@@ -314,20 +323,30 @@ export class View {
       const k = `${u.x},${u.y},${u.z}`;
       seen.add(k);
       if (stairs.has(u.unit)) landings.add(`${u.x},${u.y},${u.z + 1}`);
-      const cur = this.units.get(k);
-      if (cur && cur.unit === u.unit) continue;
-      if (cur) this.scene.remove(cur.obj);
-      const obj = this.assemble(u.model, this.look.furniture) || new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: 0xaa8866 }));
-      obj.position.copy(cellCenter(u.x, u.y, u.z));
-      obj.rotation.y = this.facing(u.x, u.y, u.z, dug);
-      obj.visible = u.z === this.level;
-      this.scene.add(obj);
-      this.pop(obj);
-      this.units.set(k, { obj, unit: u.unit });
+      let cur = this.units.get(k);
+      if (!cur || cur.unit !== u.unit) {
+        if (cur) this.scene.remove(cur.obj, cur.mark);
+        const obj = this.assemble(u.model, this.look.furniture) || new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: 0xaa8866 }));
+        obj.position.copy(cellCenter(u.x, u.y, u.z));
+        const mark = comboMark();
+        mark.position.copy(cellCenter(u.x, u.y, u.z)).add(new THREE.Vector3(0, 3.4, 0));
+        this.scene.add(obj, mark);
+        this.pop(obj);
+        cur = { obj, mark, unit: u.unit, base: this.facing(u.x, u.y, u.z, dug), rot: -1, combos: [] };
+        this.units.set(k, cur);
+      }
+      // Turned a quarter at a time, clockwise seen from above.
+      if (cur.rot !== (u.rot || 0)) {
+        cur.rot = u.rot || 0;
+        cur.obj.rotation.y = cur.base - (cur.rot * Math.PI) / 2;
+      }
+      cur.combos = u.combos || [];
+      cur.obj.visible = u.z === this.level;
+      cur.mark.visible = cur.obj.visible && cur.combos.length > 0;
     }
     for (const [k, v] of this.units) {
       if (!seen.has(k)) {
-        this.scene.remove(v.obj);
+        this.scene.remove(v.obj, v.mark);
         this.units.delete(k);
       }
     }
@@ -393,7 +412,8 @@ export class View {
     const g = new THREE.Group();
     const room = this.catalog.rooms.find((r) => r.id === c.room);
     const { look } = this;
-    const floor = this.assemble(room?.floor, look.scale);
+    const finish = c.finish && room?.finishes?.find((f) => f.id === c.finish);
+    const floor = this.assemble(finish ? finish.model : room?.floor, look.scale);
     if (floor) {
       floor.position.y = look.floorY;
       floor.userData.floor = true;
@@ -565,13 +585,17 @@ export class View {
     }
   }
 
-  // Glowing squares where the current tool can go.
+  // Glowing squares where the current tool can go: [x, y] or [x, y, colour] (brighter).
   showHints(cells, colour = 0xfff3b0) {
     this.hints.clear();
     const geo = new THREE.PlaneGeometry(CELL * 0.9, CELL * 0.9).rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.22, depthWrite: false });
-    for (const [x, y] of cells) {
-      const m = new THREE.Mesh(geo, mat);
+    const mats = new Map();
+    const mat = (c, o) => {
+      if (!mats.has(c)) mats.set(c, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false }));
+      return mats.get(c);
+    };
+    for (const [x, y, own] of cells) {
+      const m = new THREE.Mesh(geo, own === undefined ? mat(colour, 0.22) : mat(own, 0.5));
       m.position.copy(cellCenter(x, y, this.level)).add(new THREE.Vector3(0, 0.15, 0));
       m.renderOrder = 2;
       this.hints.add(m);
@@ -703,6 +727,12 @@ export class View {
       v.obj.position.lerpVectors(v.from, v.to, t);
       v.mixer.update(dt);
     }
+    const now = this.clock.elapsedTime;
+    for (const u of this.units.values()) {
+      if (!u.mark.visible) continue;
+      u.mark.rotation.y = now * 1.6;
+      u.mark.children[0].position.y = Math.sin(now * 2.2 + u.obj.position.x) * 0.18;
+    }
     const popping = [...this.cells.values()].map((c) => c.group)
       .concat([...this.units.values()].map((u) => u.obj), [...this.walls.values()].map((w) => w.obj));
     for (const g of popping) {
@@ -730,6 +760,20 @@ function starfield(n, w, h) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xdfe8ff, size: 0.5, sizeAttenuation: true, fog: false }));
+}
+
+// Over furniture whose combo holds: a small turning gem.
+function comboMark() {
+  const g = new THREE.Group();
+  const gem = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.42),
+    new THREE.MeshBasicMaterial({ color: 0xffd65c, transparent: true, opacity: 0.9 }),
+  );
+  gem.scale.y = 1.4;
+  g.add(gem);
+  g.visible = false;
+  g.renderOrder = 4;
+  return g;
 }
 
 // Where stairs come out on the next level: a ring on the floor.
