@@ -294,6 +294,14 @@ upgrade GildedCollar
     show if MimicTamer
 end
 
+upgrade Society
+    label A charter for the Archaeological Society
+    text A case of finds with a dig pit and a map table beside it becomes the Society's meeting place (the Archaeological Society combo), and a look at the finds sells for half as much again.
+    cost Gold 1800
+    cost Lore 15
+    show if Cartography
+end
+
 upgrade Archive
     label An archive of the deeps
     text Scribes work twice as fast, and a hushed corner works half as well again.

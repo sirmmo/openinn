@@ -12,7 +12,8 @@ const TAU = Math.PI * 2;
 const LAYER_COLOURS = [0xff9f1c, 0x4fc3f7, 0xe4572e, 0x9ccc65, 0xba68c8];
 
 // A model hint: `name` or `name:x:z:degrees:scale:y` parts, separated by spaces (x, z and y in
-// cells from the cell's centre on its floor), e.g. `table chair:0:-0.3:0 chair:0:0.3:180`.
+// cells from the cell's centre on its floor), e.g. `table chair:0:-0.3:0 chair:0:0.3:180`. A name
+// with a folder, `ruins/Statue_Fox`, comes from that folder of web/models/ (a .glb).
 function parts(hint) {
   return (hint || '').split(/\s+/).filter(Boolean).map((t) => {
     const [name, x, z, deg, k, y] = t.split(':');
@@ -143,7 +144,8 @@ export class View {
     for (const u of catalog.units) for (const p of parts(u.model)) names.add(p.name);
     const guests = new Set(catalog.guests.map((g) => g.model).filter(Boolean));
     const jobs = [
-      ...[...names].map((m) => [m, `models/${look.dir}/${m}.${look.ext}`]),
+      // A name with a folder (`ruins/Statue_Fox`) is a model of another pack: web/models/ruins/Statue_Fox.glb.
+      ...[...names].map((m) => [m, m.includes('/') ? `models/${m}${/\.\w+$/.test(m) ? '' : '.glb'}` : `models/${look.dir}/${m}.${look.ext}`]),
       ...[...guests].map((m) => [m, `models/${look.cdir}/${m}.${look.cext}`]),
     ];
     let done = 0;

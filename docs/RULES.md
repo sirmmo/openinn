@@ -286,7 +286,9 @@ cells from the centre of the cell (towards the wall behind it is −z). A table 
     model table chair:0:-0.3:0 chair:0:0.3:180
 ```
 
-Units turn their back to a wall when they have one.
+Units turn their back to a wall when they have one. A name with a folder is a model from another
+pack: `ruins/Statue_Fox` is `web/models/ruins/Statue_Fox.glb`, whatever the `look` block's
+`models` folder is (the Gilded Mimic's old ruins use it).
 
 ## Dwellings
 

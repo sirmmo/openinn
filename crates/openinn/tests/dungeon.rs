@@ -25,8 +25,8 @@ fn the_dungeon_inn_loads() {
     let rs = dungeon();
     assert_eq!(rs.inn.name, "The Gilded Mimic");
     assert_eq!(rs.phases.len(), 2);
-    assert_eq!(rs.guests.len(), 7);
-    assert_eq!(rs.rooms.len(), 11);
+    assert_eq!(rs.guests.len(), 8);
+    assert_eq!(rs.rooms.len(), 12);
     assert!(rs.combos.len() >= 12, "{} combos", rs.combos.len());
     assert_eq!(rs.rooms[rs.room("taproom").unwrap()].colour, "#b5734a");
     assert!(rs.warnings.is_empty(), "{:?}", rs.warnings);
@@ -97,6 +97,73 @@ fn digging_and_building_follow_the_rules() {
     assert_eq!(global(&g, "Night"), 1.0);
     assert!(g.apply(dig(6, 2, "hall")).is_err());
     assert!(g.apply(Command::Next).is_err());
+}
+
+#[test]
+fn the_old_ruins_make_an_academy_and_a_colonnade() {
+    let mut g = Game::new(dungeon(), "x");
+    for (x, y, room) in [
+        (6, 1, "library"),
+        (6, 2, "library"),
+        (7, 2, "library"),
+        (5, 1, "gallery"),
+        (4, 1, "gallery"),
+        (5, 2, "gallery"),
+    ] {
+        g.apply(Command::Dig {
+            x,
+            y,
+            z: 0,
+            room: room.into(),
+        })
+        .unwrap();
+    }
+    for (x, y, unit) in [(6, 2, "desk"), (6, 1, "bookcase"), (5, 1, "statue")] {
+        g.apply(Command::Build {
+            x,
+            y,
+            z: 0,
+            unit: unit.into(),
+        })
+        .unwrap();
+    }
+    let combos = |g: &Game, x: usize, y: usize| {
+        let s = g.snapshot();
+        s.units
+            .iter()
+            .find(|u| (u.x, u.y) == (x, y))
+            .unwrap()
+            .combos
+            .clone()
+    };
+    // A desk by a bookcase, under a statue's gaze: the Academy (and no hushed corner with one bookcase).
+    assert_eq!(combos(&g, 6, 2), vec!["academy".to_string()]);
+    assert!(combos(&g, 5, 1).is_empty());
+    g.apply(Command::Build {
+        x: 4,
+        y: 1,
+        z: 0,
+        unit: "column".into(),
+    })
+    .unwrap();
+    assert!(combos(&g, 5, 1).is_empty(), "one column is not a colonnade");
+    g.apply(Command::Build {
+        x: 5,
+        y: 2,
+        z: 0,
+        unit: "column".into(),
+    })
+    .unwrap();
+    assert_eq!(combos(&g, 5, 1), vec!["colonnade".to_string()]);
+    // The Society needs its charter from the ledger before it forms.
+    let cat = g.rs.catalog();
+    let society = cat["combos"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == "society")
+        .unwrap();
+    assert_eq!(society["near"].as_array().unwrap().len(), 2);
 }
 
 #[test]

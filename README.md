@@ -91,8 +91,9 @@ Still to come: staff to hire for the night, and more rulesets.
 ## Credits
 
 - 3D models: [KayKit Dungeon Pack](https://kaylousberg.com) by Kay Lousberg;
-  [Space Station Kit and Mini Characters](https://kenney.nl) by Kenney; all CC0 (licences in
-  `web/models/*/`).
+  [Space Station Kit and Mini Characters](https://kenney.nl) by Kenney; the Ultimate Modular
+  Ruins Pack by [Quaternius](https://quaternius.com) (`web/models/ruins/`, converted to glTF);
+  all CC0 (licences in `web/models/*/`).
 - [three.js](https://threejs.org) r160, MIT (`web/vendor/three-LICENSE.txt`).
 - Rules in [GlassBox](https://crates.io/crates/glassbox); the incremental layer runs on
   [OpenIdle](https://github.com/sirmmo/openidle).

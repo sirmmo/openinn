@@ -214,6 +214,19 @@ room vault
     finish rough floor_tile_large_rocks 2 Rubbled flags
 end
 
+room gallery
+    name Old ruins
+    cost 14
+    colour 8a8f6a
+    floor ruins/Floor_Squares:0:0:0:2
+    dwellings gallery museum chapel
+    text The diggers broke into a hall far older than the inn: columns, broken arches and the
+    text statues of nobody remembers whom. Scholars come down to see it, and to dig.
+    finish diamond ruins/Floor_Diamond:0:0:0:2 3 Diamond flags
+    finish slabs ruins/Floor_SquareLarge:0:0:0:2 3 Great slabs
+    finish rooted ruins/Floor_Tree:0:0:0:2 2 Rooted flags
+end
+
 # ---------- needs ----------
 
 need Thirst
@@ -505,6 +518,64 @@ unit mimic
 end
 
 # ---------- services ----------
+unit statue
+    name Old statue
+    in gallery hall library vault
+    cost 45
+    seats 0
+    model ruins/Statue_Fox:0:0:0:0.85
+    text A fox in weathered stone, from the old halls: a little cheer round it. Columns either side
+    text make a colonnade; a reading desk under its gaze, a lesson.
+end
+
+unit stag
+    name Stag statue
+    in gallery vault hall
+    cost 70
+    seats 0
+    model ruins/Statue_Stag:0:0:0:0.78
+    text The great stag of the old halls, antlers and all: more cheer than the fox, and it counts
+    text as a statue wherever one is wanted.
+end
+
+unit column
+    name Old column
+    in gallery hall shrine
+    cost 20
+    seats 0
+    model ruins/Column_Round:0:0:0:0.95
+    text A column from the ruins, set back up. Two by a statue make a colonnade.
+end
+
+unit arch
+    name Broken arch
+    in gallery garden
+    cost 30
+    seats 0
+    model ruins/Arch_Round_RoundColumn:0:0:0:1.1
+    text Half an arch, still standing. In the mushroom garden, beside a bed, the ivy keeps it damp.
+end
+
+unit dig
+    name Dig pit
+    in gallery garden
+    cost 35
+    seats 2
+    model floor_dirt_large_rocky:0:0:0:0.9:0.01 ruins/Bricks:0.18:0.12:30:0.9 ruins/Pot1_Broken:-0.22:0.22:0:1.2 ruins/Skull:0.26:-0.24:40:1.4 bucket:-0.26:-0.22 ruins/Brick:0.02:-0.3:70:1.3
+    text Guests pay to dig in the old floor and keep what they find: shards, bones, now and then a
+    text coin. Dusty and a little loud. Finds feed the ledger's lore.
+end
+
+unit finds
+    name Case of finds
+    in gallery library vault
+    cost 55
+    seats 2
+    model table_small:0:0:0:1.6 ruins/Pot1:-0.1:0.04:0:0.85:0.4 ruins/Pot3:0.12:-0.06:0:0.95:0.4 ruins/Pot2_Broken:0.06:0.13:0:1:0.4 ruins/Skull:-0.12:-0.12:20:0.9:0.4
+    text Pots and shards on show, with a label for each: a look at the finds for the bored. By a
+    text dig pit and a map table, a society forms.
+end
+
 # A unit offers the first service in this list that meets the guest's most pressing need.
 
 service ale
@@ -614,6 +685,24 @@ service chart
 end
 
 # ---------- combos: furniture that works better together ----------
+service view
+    name A look at the finds
+    at finds
+    need Boredom 65
+    price 5
+    time 15
+end
+
+service digging
+    name An hour at the dig
+    at dig
+    need Boredom 80
+    price 6
+    time 25
+    map Dirt out 1
+    map Noise out 0.5
+end
+
 # `near` counts units within a radius on the same level (diagonals count). Effects multiply the
 # services at the unit (`price`, `relief`, `time`) or add to the served guest's mood.
 
@@ -770,6 +859,48 @@ combo quietbed
     mood 0.08
 end
 
+combo academy
+    name The Academy
+    text A reading desk by a bookcase, under the gaze of an old statue (within two cells): the read
+    text becomes a lesson. Dearer and deeper, and lore for the ledger.
+    at desk
+    near bookcase 1
+    near statue,stag 2
+    price 1.4
+    relief 1.2
+    mood 0.08
+end
+
+combo society
+    name The Archaeological Society
+    text A case of finds with a dig pit and a map table within two cells, once the Society has its
+    text charter (the ledger): members meet over the finds. Dearer, merrier, and renown and lore.
+    at finds
+    near dig 2
+    near maptable 2
+    price 1.5
+    relief 1.25
+    mood 0.1
+    map Cheer out 0.4 radius 2
+end
+
+combo colonnade
+    name Colonnade
+    text An old statue with two columns beside it: the old hall stands again. Cheer all round.
+    at statue stag
+    near column 1 2
+    map Cheer out 0.8 radius 2
+end
+
+combo ivy
+    name Ivy on the arch
+    text A broken arch beside a mushroom bed: the ivy holds the damp.
+    at arch
+    near mushbed 1
+    in garden
+    map Damp out 0.4 radius 1
+end
+
 # ---------- guests ----------
 
 guest adventurer
@@ -893,6 +1024,23 @@ guest pilgrim
     model character-female-a
 end
 
+guest scholar
+    name Scholar
+    weight 2
+    if global Reputation atLeast 15
+    purse 40 90
+    stay 90 150
+    patience 30
+    need Boredom 0.6 30
+    need Thirst 0.4 20
+    need Hunger 0.4 20
+    need Rest 0.5 30
+    dislike map Noise greater 6 0.006
+    like map Cheer greater 2 0.003
+    map Noise out 0.2
+    model character-male-e
+end
+
 # ---------- the ledger: the incremental layer (idle.toml, params.toml, ledger.idle) ----------
 
 idle ledger
@@ -906,6 +1054,10 @@ idle ledger
     feed Lore service read               # guests' tales, written down
     feed Lore service chart 2
     feed Lore combo quiet 0.5
+    feed Lore combo academy 1        # lessons, written up
+    feed Lore service digging 0.5    # finds
+    feed Lore combo society 0.5
+    feed Renown combo society 0.5
     feed Faith service blessing
     feed Faith combo candlelit 0.5
     feed Faith combo sanctified 0.5
@@ -916,6 +1068,7 @@ idle ledger
     price soak 1 + 0.3 * Bathsalts
     price dice 1 + 0.3 * HouseRules
     price cards 1 + 0.3 * HouseRules
+    price view 1 + 0.5 * Society
     price * 1 + 0.05 * Legend
     price * 1 + 0.1 * Guildhall + 0.1 * Charter
     price * 1 + 0.25 * lastorders
@@ -928,10 +1081,12 @@ idle ledger
     unlock vault Strongroom
     unlock mimic MimicTamer
     unlock congregation Tithes
+    unlock society Society
     boost snug 1 + Hearthsong
     boost steam 1 + Bathsalts
     boost candlelit 1 + 0.5 * Relics
     boost quiet 1 + 0.5 * Archive
+    boost academy 1 + 0.5 * Archive
     boost mimicbar 1 + GildedCollar
     boost hoardwatch 1 + GildedCollar
     set Blessed blessed                  # the inn's global Blessed: 1 once the house is blessed
