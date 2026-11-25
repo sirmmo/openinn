@@ -77,6 +77,7 @@ pub enum Lockable {
 ///     unlock snug Bellows         # the combo works only while this holds
 ///     set Fame Renown             # the inn's global Fame is this, after every step
 ///     restart sell                # taking this prestige sells the inn: the building starts over
+///     away 1000 + 4000 * Coffer   # the most money time away can bring (no line: no cap)
 /// end
 /// ```
 #[derive(Clone, Debug, Default)]
@@ -99,6 +100,8 @@ pub struct IdleBridge {
     pub sets: Vec<(usize, String)>,
     /// Prestiges that start the building over.
     pub restart: Vec<String>,
+    /// The most of the inn's money that time away (`away`) can bring: an expression.
+    pub away: Option<String>,
 }
 
 /// An incremental layer's OpenIdle game.
@@ -1131,6 +1134,7 @@ fn idle(rs: &mut Ruleset, f: &str, b: &Block) -> Result<(), Error> {
                 d.sets.push((g, rest(l, 2)));
             }
             "restart" => d.restart.extend(l.words[1..].iter().cloned()),
+            "away" => d.away = Some(rest(l, 1)),
             "boost" => {
                 let id = word(f, l, 1)?;
                 let c = rs
@@ -1206,7 +1210,8 @@ fn idle_game(rs: &mut Ruleset, all: &[(String, String)]) -> Result<(), Error> {
         .chain(bridge.patience.iter().map(|e| ("patience", e)))
         .chain(bridge.unlocks.iter().map(|(_, e)| ("unlock", e)))
         .chain(bridge.boosts.iter().map(|(_, e)| ("boost", e)))
-        .chain(bridge.sets.iter().map(|(_, e)| ("set", e)));
+        .chain(bridge.sets.iter().map(|(_, e)| ("set", e)))
+        .chain(bridge.away.iter().map(|e| ("away", e)));
     for (key, e) in exprs {
         probe
             .eval(Some(&bridge.player), e)

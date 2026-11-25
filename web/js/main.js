@@ -65,16 +65,11 @@ async function boot() {
   setLevel(0);
   if (catalog.idle) {
     setupLedger();
-    // Time away: the ledger catches up (up to its offline_max).
+    // Time away: the ledger catches up (up to its offline_max; the bridge's `away` caps the money).
     const at = +localStorage.getItem(`${SAVE_KEY}:at`);
     if (saved && at && commands) {
       const away = Math.min(Date.now() - at, catalog.idle.offline_max * 1000);
-      if (away > 5000) {
-        const before = global(catalog.inn.money);
-        send({ do: 'wait', ms: Math.round(away) });
-        const got = global(catalog.inn.money) - before;
-        toast(`Away ${duration(away / 1000)}: ${got >= 0 ? '+' : ''}${format(got)} ${money()}`);
-      }
+      if (away > 5000) send({ do: 'away', ms: Math.round(away) });
     }
   }
   if (!localStorage.getItem(`openinn:seen-help:${GAME}`)) {
@@ -645,6 +640,16 @@ function logEvent(e) {
       if (ev.kind !== 'unlock') markLedger();
       break;
     }
+    case 'away': {
+      // Time away: what it brought, and what the ledger's cap left behind.
+      if (Math.abs(e.earned) < 0.5) return;
+      const lost = e.earned - e.kept;
+      text = `Away ${duration(e.ms / 1000)}: ${e.kept >= 0 ? '+' : ''}${format(e.kept)} ${money()}`;
+      if (lost > 0.5) text += ` (${format(lost)} more was over the ${format(e.cap)} the ${ledgerName().toLowerCase()} can hold while you are away)`;
+      toast(text);
+      cls = 'good';
+      break;
+    }
     case 'restart':
       text = `A new ${innName()} opens (run ${e.run + 1}).`;
       cls = 'phase';
@@ -736,6 +741,8 @@ function setupLedger() {
     const ms = Math.round(now - lastWait);
     lastWait = now;
     if (timer !== null || ms <= 0) return;
+    // A long gap (a tab in the background, a sleeping laptop) is time away: capped.
+    if (ms > 60000) { send({ do: 'away', ms: Math.min(ms, catalog.idle.offline_max * 1000) }); return; }
     const res = engine.apply({ do: 'wait', ms: Math.min(ms, catalog.idle.offline_max * 1000) });
     if (!res.error) apply(res, true);
   }, 1000);
@@ -763,6 +770,7 @@ function renderLedger() {
     if (Math.abs(rate) > 1e-9) out.push(`<span class="rate">${rate > 0 ? '+' : ''}${format(rate)} a second</span>`);
   }
   out.push('</div>');
+  if (v.away_cap != null) out.push(`<p class="hint">While you are away: up to ${format(v.away_cap)} ${money()}, for up to ${duration(v.offline_max)}.</p>`);
   const acts = v.actions.filter(vis);
   if (acts.length) {
     out.push('<h3>Now</h3>');

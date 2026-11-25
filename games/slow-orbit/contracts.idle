@@ -335,6 +335,29 @@ upgrade Network
     boost evacuate 2
 end
 
+# What time away can bring: 1000 credits at most, more with these (inn.inn's `away`).
+
+upgrade Escrow
+    label An escrow account
+    text Time away can bring up to 5000 credits, not 1000.
+    cost Credits 600
+    show if ever(Credits) >= 400
+end
+
+upgrade Bond
+    label A cargo bond
+    text Time away can bring up to 10000 credits.
+    cost Credits 4000
+    show if Escrow
+end
+
+upgrade Trust
+    label A station trust
+    text Time away can bring up to 15000 credits.
+    cost Credits 12000
+    show if Bond
+end
+
 # ---------- what you can do ----------
 
 action hail

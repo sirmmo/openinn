@@ -172,3 +172,36 @@ fn selling_the_inn_starts_the_building_over_and_keeps_the_legend() {
     assert_eq!(b.runs, 1);
     assert_eq!(b.snapshot().idle, g.snapshot().idle);
 }
+
+#[test]
+fn time_away_brings_at_most_what_the_ledger_can_hold() {
+    let mut g = game("away");
+    g.apply(buy("Peddler")).unwrap();
+    assert_eq!(g.money(), 295.0);
+    // Eight hours away: the peddler sells 5760 gold, but the ledger keeps 1000 of it.
+    let ev = g.apply(Command::Away { ms: 28_800_000 }).unwrap();
+    assert!((g.money() - 1295.0).abs() < 1e-6, "{}", g.money());
+    let Some(Event::Away {
+        earned, kept, cap, ..
+    }) = ev.iter().find(|e| matches!(e, Event::Away { .. }))
+    else {
+        panic!("no away event: {ev:?}")
+    };
+    assert!((earned - 5760.0).abs() < 1e-6, "{earned}");
+    assert!((kept - 1000.0).abs() < 1e-6);
+    assert_eq!(*cap, Some(1000.0));
+    assert!((ledger(&g, "Gold") - 1295.0).abs() < 1e-6);
+    // An iron coffer: up to 5000.
+    g.apply(buy("Coffer")).unwrap();
+    assert_eq!(g.snapshot().idle.unwrap()["away_cap"], json!(5000.0));
+    let before = g.money();
+    g.apply(Command::Away { ms: 28_800_000 }).unwrap();
+    assert!((g.money() - before - 5000.0).abs() < 1e-6);
+    // A plain wait (the game open) is not capped.
+    let before = g.money();
+    g.apply(Command::Wait { ms: 10_000_000 }).unwrap();
+    assert!((g.money() - before - 2000.0).abs() < 1e-6);
+    // And it all replays.
+    let b = Game::replay(g.rs.clone(), "away", &g.commands).unwrap();
+    assert_eq!(b.money(), g.money());
+}

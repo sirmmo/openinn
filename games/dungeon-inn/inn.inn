@@ -1091,6 +1091,7 @@ idle ledger
     boost hoardwatch 1 + GildedCollar
     set Blessed blessed                  # the inn's global Blessed: 1 once the house is blessed
     restart sell charter                 # selling the inn, or chartering a guild, starts the building over
+    away 1000 + 4000 * Coffer + 5000 * Tallyhouse + 5000 * GoblinBank   # gold time away can bring
 end
 
 # ---------- how it looks (read by the browser game, not by the engine) ----------

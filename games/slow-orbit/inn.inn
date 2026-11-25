@@ -959,6 +959,7 @@ idle contracts
     unlock chapel Rite
     unlock league League
     restart charter consortium           # selling the charter (or floating the consortium) starts the building over
+    away 1000 + 4000 * Escrow + 5000 * Bond + 5000 * Trust   # credits time away can bring
 end
 
 # ---------- how it looks (read by the browser game, not by the engine) ----------

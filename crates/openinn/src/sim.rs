@@ -163,6 +163,9 @@ pub enum Command {
     /// Time passing outside the night (the day, a pause, time away): the incremental layer runs
     /// on, the inn does not. In milliseconds, so that waits add up exactly.
     Wait { ms: u64 },
+    /// Time the player was away: a wait, but the inn's money it brings is capped by the bridge's
+    /// `away` expression (what the ledger has bought), as it stands when the player comes back.
+    Away { ms: u64 },
     /// A whole building at once, free: only as a game's first command (an imported plan).
     Plan {
         cells: Vec<PlanCell>,
@@ -182,6 +185,13 @@ pub enum Command {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Event {
+    /// The player came back: `earned` money while away, `kept` of it (at most `cap`).
+    Away {
+        ms: u64,
+        earned: f64,
+        kept: f64,
+        cap: Option<f64>,
+    },
     Phase {
         phase: String,
         day: u32,
@@ -633,6 +643,40 @@ impl Game {
         self.idle_pull();
     }
 
+    /// The most money time away can bring, if the bridge caps it.
+    pub fn away_cap(&self) -> Option<f64> {
+        let (b, idle) = (self.rs.idle.as_ref()?, self.idle.as_ref()?);
+        let e = b.away.as_ref()?;
+        Some(idle.world.eval(Some(&b.player), e).ok()?.to_f64().max(0.0))
+    }
+
+    /// Time away: the idle game runs on, and what it adds to the inn's money beyond the cap is
+    /// lost (taken back from the shared idle resource).
+    fn away(&mut self, ms: u64) {
+        let money = self.rs.inn.money;
+        let before = self.gb.accounts[0][money];
+        self.idle_time(ms);
+        let earned = self.gb.accounts[0][money] - before;
+        let cap = self.away_cap();
+        let kept = cap.map_or(earned, |c| earned.min(c));
+        if kept < earned {
+            if let (Some(b), Some(idle)) = (&self.rs.idle, &mut self.idle) {
+                if let Some((_, res)) = b.share.iter().find(|(g, _)| *g == money) {
+                    let _ = idle
+                        .world
+                        .credit(Some(&b.player), res, Num::from_f64(kept - earned));
+                }
+            }
+            self.idle_pull();
+        }
+        self.events.push(Event::Away {
+            ms,
+            earned,
+            kept: self.gb.accounts[0][money] - before,
+            cap,
+        });
+    }
+
     /// Something happened in the inn that feeds the idle game.
     fn feed(&mut self, ev: FeedEvent, amount: f64) {
         let (Some(b), Some(idle)) = (&self.rs.idle, &mut self.idle) else {
@@ -861,7 +905,10 @@ impl Game {
         if self.over
             && !matches!(
                 c,
-                Command::Idle { .. } | Command::Wait { .. } | Command::Rename { .. }
+                Command::Idle { .. }
+                    | Command::Wait { .. }
+                    | Command::Away { .. }
+                    | Command::Rename { .. }
             )
         {
             return Err("the season is over".into());
@@ -1043,6 +1090,7 @@ impl Game {
                 self.idle_pull();
             }
             Command::Wait { ms } => self.idle_time(*ms),
+            Command::Away { ms } => self.away(*ms),
             Command::Plan {
                 cells,
                 walls,
@@ -1549,6 +1597,7 @@ impl Game {
                 let b = self.rs.idle.as_ref()?;
                 let mut v = i.world.view(&b.player).ok()?;
                 v["offline_max"] = serde_json::json!(i.world.game.offline_max);
+                v["away_cap"] = serde_json::json!(self.away_cap());
                 Some(v)
             }),
             prices: (0..self.rs.services.len()).map(|s| self.price(s)).collect(),

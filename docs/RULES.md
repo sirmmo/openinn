@@ -267,12 +267,15 @@ idle ledger
     boost snug 1 + Bellows     # the combo's effects, times this (2: twice as strong)
     set Fame Renown            # the inn's global Fame is this, after every step
     restart sell               # taking this prestige sells the inn: the building starts over
+    away 1000 + 4000 * Coffer  # the most money time away can bring (no line: no cap)
 end
 ```
 
 The idle game runs at night with the inn's ticks, and in real time the rest of the time: through
 the day, a pause, a season that is over, and the time a player is away (up to its
-`offline_max`). Expressions are OpenIdle's, so an upgrade is 1 once bought, an action 1 while it
+`offline_max`). Time away is capped twice: in time by `offline_max`, and in money by `away`,
+read when the player comes back, so ledger upgrades in the expression raise it (the Gilded
+Mimic's starts at 1000 gold and climbs to 5000, 10000 and 15000). Expressions are OpenIdle's, so an upgrade is 1 once bought, an action 1 while it
 lasts, a resource its amount. A `restart` prestige keeps the idle game (what its `keep` lists)
 and starts the inn over: a new building, from the ruleset's `start`, with new dice.
 

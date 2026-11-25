@@ -34,6 +34,7 @@ Commands are JSON objects tagged by `do`:
 | `{"do": "plan", "cells": [...], "walls": [...], "stairs": [...]}` | first command only | Builds a whole building at no cost (an import) |
 | `{"do": "idle", "cmd": {"cmd": "buy", "id": "Peddler"}}` | any time | A command for the incremental layer: OpenIdle's `buy`, `act`, `prestige` |
 | `{"do": "wait", "ms": 1000}` | any time | Time passing outside the night: the incremental layer runs on; waits in a row are saved as one |
+| `{"do": "away", "ms": 3600000}` | any time | Time the player was away: a wait, but the money it brings is capped by the ruleset's `away` (an `away` event says what was earned and kept) |
 | `{"do": "next"}` | phase without a length | Ends the phase (opens the doors) |
 | `{"do": "tick", "n": 1}` | timed phase | Runs the phase on for `n` ticks |
 | `{"do": "eject", "guest": 12}` | open phase | Shows a guest the door, without a review |

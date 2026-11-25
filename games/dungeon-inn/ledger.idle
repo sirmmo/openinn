@@ -339,6 +339,29 @@ upgrade Caravanserai
     boost Caravan 2
 end
 
+# What time away can bring: 1000 gold at most, more with these (inn.inn's `away`).
+
+upgrade Coffer
+    label An iron coffer
+    text Time away can bring up to 5000 gold, not 1000.
+    cost Gold 600
+    show if ever(Gold) >= 400
+end
+
+upgrade Tallyhouse
+    label A tally-house by the stairs
+    text Time away can bring up to 10000 gold.
+    cost Gold 4000
+    show if Coffer
+end
+
+upgrade GoblinBank
+    label An account at the goblin bank
+    text Time away can bring up to 15000 gold.
+    cost Gold 12000
+    show if Tallyhouse
+end
+
 # ---------- the bell ----------
 
 action bell
