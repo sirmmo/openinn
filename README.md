@@ -102,3 +102,28 @@ Still to come: staff to hire for the night, and more rulesets.
 ## Licence
 
 Code: GPL-3.0-or-later, see `LICENSE`. Models: CC0.
+
+## Publishing on Wavedash
+
+Each ruleset is its own game on [Wavedash](https://wavedash.com)
+([docs](https://docs.wavedash.com)), configured in `wavedash/<game>/wavedash.toml`: `dungeon-inn`
+(The Gilded Mimic) and `slow-orbit` (The Slow Orbit).
+
+1. **Create the game** in the Wavedash Developer Portal, or with the CLI (`curl -fsSL
+   https://wavedash.com/cli/install.sh | sh`, `wavedash auth login`, then `wavedash project create
+   --title "The Slow Orbit" --team-id <TEAM_ID>`).
+2. **Set its id**: `game_id` in its `wavedash.toml`, or, to keep it out of the repository,
+   `WAVEDASH_GAME_ID_<GAME>` in the environment and as a repository variable (Settings › Secrets and
+   variables › Actions › Variables): `WAVEDASH_GAME_ID_DUNGEON_INN`, `WAVEDASH_GAME_ID_SLOW_ORBIT`.
+3. **Upload a build**: `sh tools/wavedash.sh [game]` builds the site with `tools/site.sh`, copies
+   the game into `wavedash/<game>/build/` with only that ruleset, which it opens without `?game=`
+   (the documentation stays on the website), and, with the CLI on `PATH` and `WAVEDASH_TOKEN` set,
+   runs `wavedash build push`. Without the CLI (or with `WAVEDASH_DRY_RUN=1`) it only says what it
+   would push. On GitHub: Actions › Wavedash › Run workflow, with the secret `WAVEDASH_TOKEN`.
+4. **Publish it**: `wavedash publish <BUILD_ID>` (the id `build push` printed), or in the Developer
+   Portal.
+
+On Wavedash the game stays behind Wavedash's loading screen until it calls `Wavedash.init()`:
+`web/js/main.js` does it through `web/js/wavedash.js` once the inn is drawn (the loading bar also
+feeds Wavedash's), or when the ruleset cannot start, to show why. Elsewhere (GitHub Pages, a local
+server) there is no `Wavedash` object and the calls do nothing.

@@ -35,6 +35,7 @@ async function boot() {
   const first = engine.start(files, 'look');
   if (first.error) {
     $('loadsub').textContent = first.error;
+    window.WavedashHook?.ready(); // show the error, not Wavedash's loading screen
     return;
   }
   look = first.catalog.look || {};
@@ -47,12 +48,13 @@ async function boot() {
   }
   if (res.error) {
     $('loadsub').textContent = res.error;
+    window.WavedashHook?.ready();
     return;
   }
   catalog = res.catalog;
   $('loadsub').textContent = `${look.loading || 'Setting the tables'}…`;
   await Promise.all([
-    view.load(catalog, (k) => { $('loadbar').style.width = `${Math.round(k * 100)}%`; }),
+    view.load(catalog, (k) => { $('loadbar').style.width = `${Math.round(k * 100)}%`; window.WavedashHook?.progress(k); }),
     dress(),
   ]);
   setupHud();
@@ -60,6 +62,7 @@ async function boot() {
   view.focus(state.cells);
   $('loading').hidden = true;
   $('hud').hidden = false;
+  window.WavedashHook?.ready(); // on Wavedash: loaded, show the inn
   // For the console and for tests: window.openinn.send({ do: 'dig', x: 6, y: 1, room: 'hall' }).
   window.openinn = { send, state: () => state, view, setSpeed, setLevel, catalog, engine, restart };
   setLevel(0);
@@ -943,4 +946,5 @@ function showTip(e) {
 boot().catch((e) => {
   console.error(e);
   $('loadsub').textContent = `Something went wrong: ${e.message}`;
+  window.WavedashHook?.ready();
 });
