@@ -118,10 +118,7 @@ Code: GPL-3.0-or-later, see `LICENSE`. Models: CC0.
 
 Each ruleset is its own game on [Wavedash](https://wavedash.com)
 ([docs](https://docs.wavedash.com)), configured in `wavedash/<game>/wavedash.toml`: `dungeon-inn`
-(The Gilded Mimic) and `slow-orbit` (The Slow Orbit). The Wheatsheaf (`village-inn`) has no Wavedash game yet:
-to publish it, create the game (step 1), add `wavedash/village-inn/wavedash.toml` with its id, and
-add `village-inn` to `GAMES` in `tools/wavedash.sh` and to the choices and the
-`WAVEDASH_GAME_ID_VILLAGE_INN` variable in `.github/workflows/wavedash.yml`.
+(The Gilded Mimic), `slow-orbit` (The Slow Orbit) and `village-inn` (The Wheatsheaf).
 
 1. **Create the game** in the Wavedash Developer Portal, or with the CLI (`curl -fsSL
    https://wavedash.com/cli/install.sh | sh`, `wavedash auth login`, then `wavedash project create

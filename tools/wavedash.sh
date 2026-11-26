@@ -1,6 +1,7 @@
 #!/bin/sh
 # Builds OpenInn's rulesets for Wavedash (https://wavedash.com) and uploads each as a new build:
-#   sh tools/wavedash.sh [game]     dungeon-inn (The Gilded Mimic), slow-orbit (The Slow Orbit)
+#   sh tools/wavedash.sh [game]     dungeon-inn (The Gilded Mimic), slow-orbit (The Slow Orbit),
+#                                   village-inn (The Wheatsheaf)
 # Each ruleset is its own Wavedash game, configured in wavedash/<game>/wavedash.toml. This builds
 # the site as the Pages workflow does (tools/site.sh), then fills wavedash/<game>/build/ with the
 # game (_site/play/) and only that ruleset, which the page opens without ?game=; links to the
@@ -11,7 +12,7 @@
 # when pushing one game, else game_id in the game's wavedash.toml.
 set -e
 cd "$(dirname "$0")/.."
-GAMES="dungeon-inn slow-orbit"
+GAMES="dungeon-inn slow-orbit village-inn"
 DOCS=https://ingmmo.com/openinn
 only=${1:-all}
 case " all $GAMES " in

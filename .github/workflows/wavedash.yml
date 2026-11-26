@@ -11,7 +11,7 @@ on:
       game:
         description: Game to upload
         type: choice
-        options: [all, dungeon-inn, slow-orbit]
+        options: [all, dungeon-inn, slow-orbit, village-inn]
         default: all
 
 permissions:
@@ -48,3 +48,4 @@ jobs:
           WAVEDASH_MESSAGE: Build ${{ github.sha }}
           WAVEDASH_GAME_ID_DUNGEON_INN: ${{ vars.WAVEDASH_GAME_ID_DUNGEON_INN }}
           WAVEDASH_GAME_ID_SLOW_ORBIT: ${{ vars.WAVEDASH_GAME_ID_SLOW_ORBIT }}
+          WAVEDASH_GAME_ID_VILLAGE_INN: ${{ vars.WAVEDASH_GAME_ID_VILLAGE_INN }}
