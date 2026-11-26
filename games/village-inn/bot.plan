@@ -1,0 +1,105 @@
+# The test bot's plan for The Wheatsheaf (crates/openinn/tests/bot.rs): each day it works down this
+# list, doing what it can afford. Round the door at (6, 0): a passage running south, the common room
+# to the west with the kitchen and cellar behind it and the kitchen garden beyond, the yard and the
+# stables to the east, the chambers and the bathhouse south-east, the skittle alley to the south and,
+# up the stairs, the quiet room and the hayloft. The first day's fourteen lines come first.
+dig 6 1 porch
+dig 6 2 porch
+dig 5 1 taproom
+dig 5 2 taproom
+dig 4 1 taproom
+dig 4 2 taproom
+dig 3 1 kitchen
+dig 2 1 kitchen
+dig 3 2 cellar
+build 5 1 bar
+build 4 2 table
+build 3 1 hearth
+build 3 2 kegs
+build 2 1 larder
+# Day 2 and on, as money allows: a trough for the peddlers' mules, beds for the merchants, and a
+# stall with a hayrick for their horses (reputation 8).
+dig 7 1 yard
+build 7 1 trough
+build 4 1 stool               # beside the bar: the regulars' row
+dig 8 1 yard
+build 8 1 hayrick
+dig 9 1 stables
+build 9 1 stall
+dig 6 3 porch
+dig 7 2 chamber
+dig 7 3 chamber
+build 7 2 bed
+build 7 3 bed
+dig 9 2 stables
+build 9 2 barrow              # beside the stall: a well-kept stable
+# The fire pit in the common room, and more tables round it (the millers eat a lot).
+dig 5 3 taproom
+dig 4 3 taproom
+build 4 3 fire
+build 5 2 table               # within two cells of the fire: a fireside
+dig 3 3 taproom
+build 3 3 table
+# Something for the soldiers' boredom (reputation 12): a skittle alley.
+dig 6 4 porch
+dig 5 4 alley
+dig 5 5 alley
+build 5 4 skittles
+build 5 5 skittles            # two side by side: a skittle alley
+dig 4 4 alley
+build 4 4 banner              # beside the table at (3, 3): under the colours
+build 6 2 pail                # a scullion for the floors
+build 6 1 lantern
+# A bathhouse for the quarrymen (reputation 15): a well in the kitchen garden for the copper.
+build 6 3 washstand
+dig 7 4 bathhouse
+dig 8 4 bathhouse
+dig 2 2 yard
+build 2 2 well
+build 8 4 copper
+build 7 4 tub                 # beside the copper: a steam room
+# Up the stairs: the quiet room for the pilgrims (25) and the scholars (30).
+build 6 4 stairs
+dig 6 4 1 porch
+dig 5 4 1 parlour
+dig 4 4 1 parlour
+dig 5 5 1 parlour
+dig 4 5 1 parlour
+build 5 4 1 altar
+build 4 4 1 lantern
+build 5 5 1 lantern           # two by the prayer corner: lit prayers
+build 4 5 1 desk
+# The kitchen garden and the bread oven: pies.
+dig 1 2 yard
+dig 1 3 yard
+dig 2 3 yard
+build 1 2 vegpatch
+build 1 3 vegpatch
+build 2 3 herbbed
+dig 1 1 kitchen
+build 1 1 oven
+# A stage for the bards (reputation 20), within two cells of the bar: a sing-song.
+build 5 3 stage
+dig 4 5 alley
+build 4 5 draughts
+dig 8 2 chamber
+build 8 2 flowers
+dig 8 3 chamber
+build 8 3 bed
+dig 3 5 1 parlour
+dig 3 4 1 parlour
+build 3 5 1 bookcase
+build 3 4 1 bookcase          # two beside the desk: a quiet corner
+dig 7 4 1 loft
+build 7 4 1 pallet
+dig 7 5 1 chamber
+build 7 5 1 bed
+# Strewing herbs in the stables, a second stall and a second bar.
+dig 10 1 stables
+build 10 1 stall
+dig 10 2 stables
+build 10 2 strewing
+# The post horses for the royal messengers (reputation 40): needs the royal post from the market,
+# which the bot never buys.
+dig 9 3 stables
+build 9 3 posthorse

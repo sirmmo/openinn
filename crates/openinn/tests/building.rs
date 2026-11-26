@@ -304,7 +304,7 @@ fn a_dwellings_house_is_turned_and_placed_at_the_entrance() {
         .any(|w| (w.x, w.y, w.side, w.door) == (6, 2, Side::E, false)));
 }
 
-/// Real exports from the Dwellings app import into both rulesets in both modes, everything they
+/// Real exports from the Dwellings app import into every ruleset in both modes, everything they
 /// build can be reached, and exporting the result and importing it again gives the same inn.
 #[test]
 fn real_dwellings_houses_import_and_round_trip() {
@@ -313,7 +313,7 @@ fn real_dwellings_houses_import_and_round_trip() {
     for house in ["two-floors.json", "five-floors.json"] {
         let doc: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(dir.join(house)).unwrap()).unwrap();
-        for game in ["dungeon-inn", "slow-orbit"] {
+        for game in ["dungeon-inn", "slow-orbit", "village-inn"] {
             let rs = load_dir(&games.join(game)).unwrap();
             for mode in [Mode::Season, Mode::Endless] {
                 let what = format!("{house} in {game} ({mode:?})");

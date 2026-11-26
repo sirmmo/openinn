@@ -1,0 +1,24 @@
+/* The Wheatsheaf's look: a summer's day on the green, whitewash and oak, wheat for highlights, silver coin. */
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&display=swap');
+:root {
+  --ink: #2f2a1e;
+  --paper: #fbf7ea;
+  --paper2: #efe6cc;
+  --gold: #d9a531;              /* wheat, for stars and highlights; the coin is silver */
+  --accent: #a8452f;
+  --muted: #7a6f55;
+}
+html, body, #loading { background: #a9d4ef; }
+#top .name, #tools h3, .modal h2, #guestCard h4, #loading .title { font-family: 'IM Fell English SC', Georgia, serif; letter-spacing: 0.3px; }
+#top .name { font-size: 18px; }
+.modal h2 { font-size: 24px; }
+#top .progress i { background: linear-gradient(90deg, #e9b949, #7fae4e); }
+i.coin { background: radial-gradient(circle at 35% 35%, #ffffff, #c9ced6 55%, #7d848e); }
+i.guest { background: #5f8a3a; }
+#loading { color: var(--ink); }
+#loading .title { color: #4a5f2e; }
+#loading .bar { border-color: var(--ink); }
+#loading .bar i { background: #5f8a3a; }
+.need .bar i { background: #7fae4e; }
+#log li { background: rgba(251, 247, 234, 0.92); }
+#log li.phase { background: #4a5f2e; }

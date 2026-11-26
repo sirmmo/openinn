@@ -14,10 +14,15 @@ The first ruleset is **The Gilded Mimic** (`games/dungeon-inn`): an inn on the t
 the dungeon, for adventurers, dwarf miners, wizards and goblin peddlers on their way down.
 The second is **The Slow Orbit** (`games/slow-orbit`): a bar and bunkhouse on a refuelling ring
 at the edge of a mining belt, where the air goes stale (a CO2 layer that scrubbers clear) and
-courier robots need a charging post. Each ruleset also says how it looks (a `look` block: models,
-colours, words) and can bring its own help text and stylesheet.
+courier robots need a charging post. The third is **The Wheatsheaf** (`games/village-inn`): a
+village inn on the green at a crossroads of the realm, for the taverns of
+[OpenDorf](https://sirmmo.github.io/opendorf/), where farmhands, peddlers, merchants, soldiers,
+quarrymen, bards, pilgrims, scholars and royal messengers stop; its stables earn well but make a
+muck layer the other guests dislike, and its yard has a well, a kitchen garden and, later, a
+maypole. Each ruleset also says how it looks (a `look` block: models, colours, words) and can bring
+its own help text and stylesheet.
 
-Both play as a seven-night **season** or in **endless** mode, where the inn keeps opening night
+All three play as a seven-night **season** or in **endless** mode, where the inn keeps opening night
 after night on a larger grid. Inns have **levels** joined by stairs, and **inner walls and doors**
 that guests walk round and that stop noise, heat or stale air from spreading. Buildings import
 from and export to the JSON format of watabou's [Dwellings](https://watabou.github.io/dwellings/).
@@ -25,12 +30,15 @@ from and export to the JSON format of watabou's [Dwellings](https://watabou.gith
 Each inn also has an **incremental layer**, an [OpenIdle](https://github.com/sirmmo/openidle) game
 that the inn plays as its one player: The Gilded Mimic's ledger (peddlers, bards, a loot fence,
 upgrades such as dwarven stout or feather mattresses, a stair bell, and selling the inn for
-legend) and The Slow Orbit's contracts. It shares the inn's purse, is fed by its guests, acts on
+legend), The Slow Orbit's contracts and The Wheatsheaf's market stall (stable lads, fiddlers,
+field hands, a cook's helper, upgrades such as a malting floor or feather beds, and passing the inn
+on for legacy). It shares the inn's purse, is fed by its guests, acts on
 prices, arrivals, patience and what can be built, and runs on through the day and while you are
 away. Its files sit next to the ruleset's: `idle.toml`, `params.toml`, `*.idle`.
 
 **Play:** [The Gilded Mimic](https://ingmmo.com/openinn/play/) ·
 [The Slow Orbit](https://ingmmo.com/openinn/play/?game=slow-orbit) ·
+[The Wheatsheaf](https://ingmmo.com/openinn/play/?game=village-inn) ·
 **Documentation:** https://ingmmo.com/openinn/
 
 ## How a ruleset works
@@ -81,6 +89,7 @@ sends a command.
 | `crates/openinn/tests/` | Tests and the bot innkeeper they share with the example; `dwellings/` holds two houses exported from the Dwellings app |
 | `games/dungeon-inn/` | The Gilded Mimic: `inn.inn` (declarations, look, the `idle` bridge), `economy.gbx` (GlassBox rules), `idle.toml` + `params.toml` + `ledger.idle` (the ledger, in OpenIdle), `help.html`, `bot.plan` (the test bot's build order) |
 | `games/slow-orbit/` | The Slow Orbit, the same way, plus `style.css` |
+| `games/village-inn/` | The Wheatsheaf, the same way: `market.idle` is its market stall |
 | `crates/openinn-web/` | The engine as WebAssembly: `start`, `apply`, `view`, `save` messages |
 | `web/` | The page: `js/engine.js` (wasm), `js/view.js` (three.js), `js/main.js` (interface) |
 | `site/`, `docs/` | The documentation site: the overview page, and the pages rendered from `docs/*.md` |
@@ -93,7 +102,9 @@ Still to come: staff to hire for the night, and more rulesets.
 - 3D models: [KayKit Dungeon Pack](https://kaylousberg.com) by Kay Lousberg;
   [Space Station Kit and Mini Characters](https://kenney.nl) by Kenney; the Ultimate Modular
   Ruins Pack by [Quaternius](https://quaternius.com) (`web/models/ruins/`, converted to glTF);
-  all CC0 (licences in `web/models/*/`).
+  for The Wheatsheaf (`web/models/village/`), pieces of Kenney's Fantasy Town, Nature, Graveyard,
+  Survival and Prototype kits and KayKit's Medieval Hexagon Pack, made into self-contained GLB
+  files; all CC0 (licences in `web/models/*/`).
 - [three.js](https://threejs.org) r160, MIT (`web/vendor/three-LICENSE.txt`).
 - Rules in [GlassBox](https://crates.io/crates/glassbox); the incremental layer runs on
   [OpenIdle](https://github.com/sirmmo/openidle).
@@ -107,7 +118,10 @@ Code: GPL-3.0-or-later, see `LICENSE`. Models: CC0.
 
 Each ruleset is its own game on [Wavedash](https://wavedash.com)
 ([docs](https://docs.wavedash.com)), configured in `wavedash/<game>/wavedash.toml`: `dungeon-inn`
-(The Gilded Mimic) and `slow-orbit` (The Slow Orbit).
+(The Gilded Mimic) and `slow-orbit` (The Slow Orbit). The Wheatsheaf (`village-inn`) has no Wavedash game yet:
+to publish it, create the game (step 1), add `wavedash/village-inn/wavedash.toml` with its id, and
+add `village-inn` to `GAMES` in `tools/wavedash.sh` and to the choices and the
+`WAVEDASH_GAME_ID_VILLAGE_INN` variable in `.github/workflows/wavedash.yml`.
 
 1. **Create the game** in the Wavedash Developer Portal, or with the CLI (`curl -fsSL
    https://wavedash.com/cli/install.sh | sh`, `wavedash auth login`, then `wavedash project create

@@ -38,6 +38,7 @@
     <div class="cta">
       <a class="button" href="play/">Play The Gilded Mimic</a>
       <a class="button" href="play/?game=slow-orbit">Play The Slow Orbit</a>
+      <a class="button" href="play/?game=village-inn">Play The Wheatsheaf</a>
       <a class="button ghost" href="rules.html">Write a ruleset</a>
     </div>
   </div>
@@ -91,6 +92,33 @@
   </div>
 </section>
 
+<section class="demo">
+  <a class="shot" href="play/?game=village-inn"><img src="shot-village.jpg" alt="The Wheatsheaf on an evening: a half-timbered inn on the village green, with a common room, a kitchen garden with a well, guest chambers and stables with horses" width="1200" height="750" loading="lazy"></a>
+  <div>
+    <h2>The Wheatsheaf</h2>
+    <p>A village inn on the green, where the king's road crosses the drovers' way: the taverns of
+      <a href="https://sirmmo.github.io/opendorf/">OpenDorf</a> open it, seeded by the realm and
+      the tile. Farmhands, peddlers with their mules, merchants on horseback, soldiers from the
+      garrison, quarrymen, bards, pilgrims, scholars from the Academy and royal messengers stop
+      at evening.</p>
+    <ul>
+      <li><b>Stables pay, and smell.</b> Horse stalls earn well but give off muck that nobody wants
+        to eat beside: a stable lad's barrow mucks out, strewing herbs sweeten the air, and a wall
+        with a door keeps it in.</li>
+      <li><b>A kitchen garden.</b> The well waters the vegetable patches and the herb bed; the bread
+        oven bakes pies, and a little muck from the stables makes the vegetables grow twice as
+        fast.</li>
+      <li><b>Twelve rooms and nineteen combos.</b> A skittle alley, a minstrels' stage, a quiet room
+        upstairs with a prayer corner and a cabinet of curiosities, a bathhouse, a hayloft and,
+        from the market stall, a brewhouse and a maypole on the green.</li>
+      <li><b>Daylight.</b> Half-timbered walls and a village green, from Kenney's Fantasy Town and
+        Nature kits, all in the ruleset's look.</li>
+    </ul>
+    <p><a class="button" href="play/?game=village-inn">Play The Wheatsheaf</a>
+      <a class="button ghost" href="rulesets.html#the-wheatsheaf">Read its rules</a></p>
+  </div>
+</section>
+
 <section>
   <h2>How a ruleset works</h2>
   <div class="cards">
@@ -137,15 +165,16 @@ end</code></pre>
     <a class="c link" href="engine.html"><h3>Engine</h3><p>Commands, events and snapshots; the
       engine from Rust and in the browser; determinism and saves.</p></a>
     <a class="c link" href="rulesets.html"><h3>Examples</h3><p>The complete source of The Gilded
-      Mimic and The Slow Orbit, to read or to copy as the start of your own inn.</p></a>
+      Mimic, The Slow Orbit and The Wheatsheaf, to read or to copy as the start of your own inn.</p></a>
     <a class="c link" href="https://github.com/sirmmo/openinn"><h3>Source</h3><p>The engine, the
       browser game and the rulesets on GitHub, under the GPL.</p></a>
   </div>
-  <p>Both inns play as a seven-night season or in <b>endless</b> mode, with levels joined by stairs,
+  <p>Every inn plays as a seven-night season or in <b>endless</b> mode, with levels joined by stairs,
     inner walls and doors that stop noise and stale air, and buildings that import from and
     export to <a href="https://watabou.github.io/dwellings/">watabou's Dwellings</a>.</p>
   <p>Each inn also runs an incremental layer on <a href="https://github.com/sirmmo/openidle">OpenIdle</a>:
-    a ledger of peddlers, bards and upgrades (contracts, drones and refits on the ring) that shares
+    a ledger of peddlers, bards and upgrades (contracts, drones and refits on the ring; a market
+    stall of stable lads, fiddlers and field hands in the village) that shares
     the inn's purse, grows while you are away, and lets you sell the inn for legend and start over.</p>
   <p class="soon">Coming: staff to hire for the night, and more rulesets.</p>
 </section>
@@ -153,7 +182,8 @@ end</code></pre>
 <footer>
   OpenInn · code GPL-3.0-or-later · rules in <a href="https://crates.io/crates/glassbox">GlassBox</a><br>
   3D models: <a href="https://kaylousberg.com">KayKit Dungeon Pack</a> by Kay Lousberg;
-  <a href="https://kenney.nl">Space Station Kit and Mini Characters</a> by Kenney (CC0) ·
+  <a href="https://kaylousberg.com">Medieval Hexagon Pack</a> by Kay Lousberg;
+  <a href="https://kenney.nl">Space Station, Fantasy Town, Nature, Graveyard, Survival and Prototype kits and Mini Characters</a> by Kenney (CC0) ·
   <a href="https://threejs.org">three.js</a> (MIT) · fonts Cinzel and Fredoka (OFL)
 </footer>
 </body>

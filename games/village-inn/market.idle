@@ -1,0 +1,480 @@
+# The Wheatsheaf's market stall. Silver and Produce are the inn's own (inn.inn: `share`); Served,
+# Renown, Tales and Alms come from the inn (`feed`); upgrades, milestones and actions act on the
+# inn through inn.inn's `idle` block.
+
+resource Silver
+    text The inn's purse: the bar's takings, and what the market stall's people bring in.
+    view color #c9ced6
+end
+
+resource Served
+    text Guests served, ever.
+    hidden
+end
+
+resource Renown
+    text Word of the inn along the roads: one for every guest who leaves happy. Word cannot run
+    text ahead of the inn: it holds at most 50, and 2 more for every guest served this run.
+    cap $renown_cap + $renown_per_guest * Served
+    view color #d98f4e
+end
+
+resource Tales
+    text Songs, tales and finds, written down: one for every song and every quiet read, half for a look at the curiosities.
+    show if ever(Tales) > 0
+    view color #8fb3d9
+end
+
+resource Alms
+    text The prayer corner's alms: one for every prayer, more where the lanterns are lit.
+    show if ever(Alms) > 0
+    view color #f4e3a1
+end
+
+resource Produce
+    text Vegetables in the inn's stores, for the bread oven.
+    show if ever(Produce) > 0
+    cap $produce_cap
+    view color #8fc05a
+end
+
+resource Legacy
+    text Kept when you pass the inn on: every legacy makes the market 10% faster and the inn's prices 5% higher.
+    show if Legacy > 0
+    boost all 1 + $legacy_boost * Legacy
+    view color #ffd27a
+end
+
+resource Warrant
+    text A royal warrant, kept through everything: the market half as fast again, prices and guests a tenth more, for each.
+    show if Warrant > 0
+    boost all 1 + $warrant_boost * Warrant
+    view color #7a9fe0
+end
+
+# ---------- people who work for the inn ----------
+
+generator Lad
+    label Stable lad
+    text Holds travellers' horses at the gate and runs errands: silver, day and night, here or away.
+    cost Silver $lad_cost * $growth ^ owned
+end
+
+rule hold
+    appliesTo Lad
+    out Silver $lad_rate
+end
+
+generator Fiddler
+    text Plays at every fair in the shire, and says where he drinks: renown.
+    cost Silver $fiddler_cost * $fiddler_growth ^ owned
+    show if ever(Renown) >= 3
+end
+
+rule fiddle
+    appliesTo Fiddler
+    out Renown $fiddler_rate
+end
+
+generator Brewer
+    label Brewer at the fairs
+    text Sells the inn's ale by the barrel at every fair and wedding: a lot of silver.
+    cost Silver $brewer_cost * 1.18 ^ owned
+    show if ever(Served) >= 60
+end
+
+rule sell_ale
+    appliesTo Brewer
+    out Silver $brewer_rate
+end
+
+generator Fieldhand
+    label Field hand
+    text Works the inn's strips in the open field: vegetables for the inn's stores, here or away.
+    cost Silver $fieldhand_cost * 1.2 ^ owned
+    show if ever(Served) >= 20
+end
+
+rule till
+    appliesTo Fieldhand
+    out Produce $fieldhand_rate
+end
+
+generator Cook
+    label Cook's helper
+    text Bakes the inn's vegetables into pies for the market: silver, while the vegetables last (the bread oven wants them too).
+    cost Silver $cook_cost * 1.2 ^ owned
+    show if ever(Produce) >= 5
+end
+
+rule bake_for_market
+    appliesTo Cook
+    in Produce $cook_produce
+    out Silver $cook_rate
+end
+
+generator Balladeer
+    label Ballad-seller
+    text Turns the inn's tales into ballads for the fairs: silver and a little renown, while the tales last.
+    cost Silver $ballad_cost * 1.2 ^ owned
+    show if ever(Tales) >= 3
+end
+
+rule sing_ballads
+    appliesTo Balladeer
+    in Tales $ballad_tales
+    out Silver $ballad_rate
+    out Renown 0.003
+end
+
+generator Almoner
+    text Hands out bread at the church door in the inn's name: alms, and a little renown.
+    cost Silver $almoner_cost * 1.2 ^ owned
+    show if ever(Alms) >= 3
+end
+
+rule give
+    appliesTo Almoner
+    out Alms $almoner_rate
+    out Renown 0.002
+end
+
+generator Carrier
+    label Carrier's cart
+    text Brings travellers in from the crossroads: every cart brings 3% more guests, and some renown.
+    cost Silver $carrier_cost * 1.22 ^ owned
+    max 20
+    show if ever(Served) >= 40
+end
+
+rule carry
+    appliesTo Carrier
+    out Renown 0.01
+end
+
+generator Drovers
+    label Drovers' herd
+    text A share in the herds driven to the city markets along the drovers' way: a great deal of silver.
+    cost Silver $drovers_cost * 1.35 ^ owned
+    show if Brewer >= 3
+end
+
+rule drive
+    appliesTo Drovers
+    out Silver $drovers_rate
+end
+
+# ---------- upgrades (inn.inn says what they do to the inn) ----------
+
+upgrade Signboard
+    label A painted signboard
+    text More travellers stop: guests come a quarter as often again.
+    cost Silver 80
+end
+
+upgrade Featherbeds
+    label Feather beds
+    text You can put feather beds in the guest chambers.
+    cost Silver 120
+    show if ever(Served) >= 10
+end
+
+upgrade Malting
+    label A malting floor
+    text Ale and best ale sell for half as much again.
+    cost Silver 150
+    show if ever(Served) >= 15
+end
+
+upgrade Benches
+    label A bench by the door
+    text Guests wait half as long again before they give up.
+    cost Silver 100
+    show if ever(Served) >= 20
+end
+
+upgrade Flour
+    label Fine flour from the mill
+    text Pies sell for 40% more, stew for 20% more.
+    cost Silver 200
+    show if ever(Served) >= 30
+end
+
+upgrade Ostler
+    label A head ostler
+    text Stable lads bring in twice as much.
+    cost Silver 300
+    if Lad >= 5
+    show if Lad >= 3
+    boost Lad 2
+end
+
+upgrade HarvestSongs
+    label Harvest songs
+    text Fiddlers play half as well again, and a fireside table works twice as well.
+    cost Silver 180
+    show if Fiddler >= 2
+    boost Fiddler 1.5
+end
+
+upgrade Oats
+    label Oats from the mill
+    text Stabling sells for half as much again, a fresh horse for 30% more.
+    cost Silver 220
+    show if ever(Served) >= 30
+end
+
+upgrade League
+    label A skittles league
+    text Skittles and draughts cost 30% more.
+    cost Silver 250
+    show if ever(Served) >= 40
+end
+
+upgrade Lavender
+    label Lavender water
+    text Soaks sell for 30% more, and a steam room and a herb bath work twice as well.
+    cost Silver 600
+    show if ever(Served) >= 50
+end
+
+upgrade Plough
+    label A plough team
+    text Field hands bring twice as many vegetables.
+    cost Silver 300
+    if Fieldhand >= 3
+    show if Fieldhand >= 1
+    boost Fieldhand 2
+end
+
+upgrade Lanterns
+    label Lanterns at the crossroads
+    text Guests wait a quarter as long again before they give up (on top of the bench).
+    cost Silver 800
+    show if Benches
+end
+
+upgrade RoyalPost
+    label The royal post
+    text The king's messengers change horses here: you can keep post horses in the stables.
+    cost Silver 250
+    cost Renown 10
+    show if ever(Renown) >= 5
+end
+
+upgrade AlmsBox
+    label An alms box
+    text Two pews by the prayer corner make it pay half as much again (the Full pews combo).
+    cost Silver 200
+    cost Alms 10
+    show if ever(Alms) >= 5
+end
+
+upgrade Relic
+    label A relic of the saint
+    text Prayers sell for half as much again, and lit prayers work half as well again.
+    cost Silver 2000
+    cost Alms 25
+    show if AlmsBox
+end
+
+upgrade Criers
+    label Criers on market day
+    text Guests come a quarter as often again (on top of the signboard).
+    cost Silver 1500
+    cost Renown 15
+    show if Signboard
+end
+
+upgrade Brewhouse
+    label A brewer's licence
+    text You can build a brewhouse, and brew best ale in it.
+    cost Silver 1200
+    show if ever(Served) >= 80
+end
+
+upgrade Maypole
+    label A maypole for the green
+    text You can raise a maypole in the yard.
+    cost Silver 2500
+    cost Renown 20
+    show if Brewhouse
+end
+
+upgrade Ribbons
+    label Ribbons from the city
+    text Dancing on the green and a sing-song at the bar work twice as well.
+    cost Silver 8000
+    cost Renown 40
+    show if Maypole
+end
+
+upgrade Society
+    label A charter for the Archaeological Society
+    text A cabinet of curiosities with a reading desk and a bookcase near becomes the Society's meeting place (the Archaeological Society combo), and a look at the curiosities sells for half as much again.
+    cost Silver 1800
+    cost Tales 15
+    show if ever(Tales) >= 10
+end
+
+upgrade BalladBook
+    label A book of ballads
+    text Ballad-sellers work twice as fast, and a quiet corner works half as well again.
+    cost Silver 3000
+    cost Tales 30
+    if Balladeer >= 3
+    show if Balladeer >= 1
+    boost Balladeer 2
+end
+
+upgrade Bellringers
+    label Bell-ringers
+    text Almoners work twice as well.
+    cost Silver 2500
+    cost Alms 30
+    if Almoner >= 3
+    show if Almoner >= 1
+    boost Almoner 2
+end
+
+upgrade Patronage
+    label The lord's patronage
+    text Every price in the inn is a tenth higher.
+    cost Silver 15000
+    cost Renown 60
+    show if ever(Renown) >= 40
+end
+
+upgrade Droveroad
+    label A drovers' road
+    text Drovers' herds bring twice as much.
+    cost Silver 60000
+    if Drovers >= 5
+    show if Drovers >= 2
+    boost Drovers 2
+end
+
+# What time away can bring: 1000 silver at most, more with these (inn.inn's `away`).
+
+upgrade Strongbox
+    label An oak strongbox
+    text Time away can bring up to 5000 silver, not 1000.
+    cost Silver 600
+    show if ever(Silver) >= 400
+end
+
+upgrade Countinghouse
+    label A counting-house in the market square
+    text Time away can bring up to 10000 silver.
+    cost Silver 4000
+    show if Strongbox
+end
+
+upgrade Lombards
+    label An account with the Lombards
+    text Time away can bring up to 15000 silver.
+    cost Silver 12000
+    show if Countinghouse
+end
+
+# ---------- what you can do ----------
+
+action alestake
+    label Hang out the ale-stake
+    text Twice as many guests for the next 30 seconds of the evening.
+    cooldown 120
+    lasts 30
+end
+
+action marketday
+    label Call market day
+    text Every price a quarter higher for the next 30 seconds of the evening.
+    cooldown 300
+    lasts 30
+    show if ever(Served) >= 30
+end
+
+action feastday
+    label Keep a saint's day
+    text Spend 5 alms for 3 renown.
+    in Alms 5
+    out Renown 3
+    cooldown 600
+    show if ever(Alms) >= 5
+end
+
+# ---------- milestones ----------
+
+milestone fifty
+    label Fifty served
+    text The market runs a quarter faster.
+    if ever(Served) >= 50
+    boost all 1.25
+    view kind level
+end
+
+milestone famed
+    label Sung at every fair
+    text Fiddlers play twice as well.
+    if ever(Renown) >= 25
+    boost Fiddler 2
+    view kind level
+end
+
+milestone busy
+    label Five hundred served
+    text The market runs a quarter faster again.
+    if ever(Served) >= 500
+    boost all 1.25
+    view kind level
+end
+
+milestone learned
+    label A book of tales
+    text Fifty tales: ballad-sellers work half as well again.
+    if ever(Tales) >= 50
+    boost Balladeer 1.5
+    view kind level
+end
+
+milestone blessed
+    label A blessed house
+    text Forty alms: almoners work half as well again, and the parson blesses the house (the A blessed house combo).
+    if ever(Alms) >= 40
+    boost Almoner 1.5
+    view kind level
+end
+
+milestone shires
+    label Known in every shire
+    text A hundred and fifty renown: carriers' carts bring twice the renown.
+    if ever(Renown) >= 150
+    boost Carrier 2
+    view kind level
+end
+
+milestone coffers
+    label Full coffers
+    text Fifty thousand silver made: everything at the market costs a tenth less.
+    if ever(Silver) >= 50000
+    discount all 0.9
+    view kind level
+end
+
+# ---------- passing the inn on ----------
+
+prestige sell
+    label Pass the inn on
+    text Hand the Wheatsheaf to your heir and build a grander inn at the next crossroads: the building and the silver start over; legacy stays, and some of the market's people come with you (of each kind, $carry_base and one more for every legacy).
+    gain Legacy floor(sqrt(total(Renown) / 5))
+    keep Legacy Warrant
+    carry Lad Fiddler Brewer Fieldhand Cook Balladeer Almoner Carrier Drovers max $carry_base + Legacy
+end
+
+prestige warrant
+    label Seek a royal warrant
+    text Give up the inn and its legacy for a royal warrant as purveyor to the court: everything starts over, legacy too; the warrant stays for good.
+    gain Warrant floor(sqrt(Legacy / 25))
+    keep Warrant
+    show if ever(Legacy) >= 15
+end

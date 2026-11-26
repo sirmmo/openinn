@@ -1,0 +1,1271 @@
+# The Wheatsheaf: an inn on the green of a village, where the king's road crosses the drovers' way.
+# By day you build and furnish; at evening the door opens and the realm comes in off the green:
+# farmhands and millers from the fields, peddlers with their mules, merchants on horseback,
+# soldiers from the garrison, quarrymen white with dust, bards, pilgrims on their way to the
+# church, scholars from the Academy and, now and then, a royal messenger who wants a fresh horse.
+# The economy (the well, the kitchen garden, brewing, cooking, baking, the stables and the smell
+# they make) is in economy.gbx.
+
+inn village
+    name The Wheatsheaf
+    grid 12 9
+    entrance 6 0 porch          # the door onto the green
+    money Silver
+    reputation Reputation 2     # a delighted guest adds 2, a furious one takes 2 away
+    start Silver 320
+    start Reputation 5
+    start Ale 10                # the cellar is stocked for the first evening
+    start Provisions 8
+    start Water 6
+    nights 7                    # a season
+    guests 14                   # at most this many at once
+    levels 2 up                 # a season: the ground floor and the floor above, by stairs
+    endless 18 14 5 30          # endless mode: a wider plot, five floors, up to 30 guests
+    wall 4                      # an inner wall between two built cells
+    door 8                      # a door in one
+end
+
+# ---------- phases ----------
+
+phase day
+    name Day: build and furnish
+    build
+    set Night 0
+end
+
+phase night
+    name Evening: the door is open
+    length 180
+    open
+    night
+    set Night 1
+    arrive 0.06 per Reputation 0.003   # more travellers stop as word gets round
+end
+
+# ---------- layers (GlassBox maps on the built cells) ----------
+
+layer Noise
+    decay 0.25
+    diffuse 0.15
+    max 30
+    colour ff9f1c
+end
+
+# Warmth: the fire pit, the kitchen range, the bread oven and the copper. Quarrymen like it.
+layer Warmth
+    decay 0.1
+    diffuse 0.2
+    max 20
+    colour e4572e
+end
+
+layer Dirt
+    decay 0.002
+    diffuse 0.02
+    max 50
+    colour 7a5c3a
+end
+
+# Muck: what the stables give off. Horses earn well, but nobody wants to eat next to them: a
+# stable lad's barrow clears it, strewing herbs sweeten it, and a wall with a door keeps it out.
+# The vegetable patch grows faster where there is a little of it.
+layer Muck
+    decay 0.02
+    diffuse 0.12
+    max 40
+    colour 9a8a3a
+end
+
+# Cheer: lanterns, flowers, banners, music and a maypole. Most guests like it.
+layer Cheer
+    decay 0.15
+    diffuse 0.15
+    max 20
+    colour f2c14e
+end
+
+# ---------- rooms (cost per cell built) ----------
+# `dwellings`: the rooms of a Dwellings house that import as this room.
+# `finish`: floors the player can lay over the plain one (id, model, cost per cell, name).
+
+room porch
+    name Passage
+    cost 6
+    colour a08a68
+    floor floor_wood_small:0:0:0:2
+    dwellings hall corridor stairhall gallery secret-passage lookout
+    text The way in from the green and the passages between the rooms. A washstand, a lantern, a
+    text banner or the stairs up can stand here.
+    finish flags floor_tile_large 2 Flagstones
+    finish boards floor_wood_large 2 Broad boards
+    finish worn floor_tile_small_broken_B:0:0:0:2 1 Worn tiles
+end
+
+room taproom
+    name Common room
+    cost 10
+    colour c0844f
+    floor floor_wood_large
+    dwellings living-room room *
+    text Where the village drinks and eats: the bar, trestle tables, a fire pit and a stage for
+    text the bards.
+    finish dark floor_wood_large_dark 3 Dark oak boards
+    finish planks floor_wood_small:0:0:0:2 2 Narrow planks
+    finish flags floor_tile_large 2 Flagstones
+end
+
+room kitchen
+    name Kitchen
+    cost 12
+    colour d4a72c
+    floor floor_tile_large
+    dwellings kitchen workshop
+    text The range cooks stew from the larder's provisions; the bread oven bakes pies from the
+    text garden's vegetables.
+    finish tiles floor_tile_small:0:0:0:2 2 Small tiles
+    finish earth floor_dirt_large 1 Beaten earth
+end
+
+room cellar
+    name Cellar
+    cost 8
+    colour 7a5a44
+    floor floor_dirt_large
+    dwellings cellar storage
+    text Cool and dark: the kegs and the larder.
+    finish flags floor_tile_large 3 Flagstones
+    finish rocky floor_dirt_large_rocky 1 Rocky earth
+end
+
+room chamber
+    name Guest chambers
+    cost 12
+    colour 5f86b0
+    floor floor_wood_large_dark
+    dwellings bedroom
+    text Beds for travellers who can pay for one. Keep them quiet and sweet-smelling: upstairs is
+    text quietest.
+    finish oak floor_wood_large 3 Light boards
+    finish planks floor_wood_small_dark:0:0:0:2 2 Narrow dark planks
+end
+
+room loft
+    name Hayloft
+    cost 6
+    colour b39a52
+    floor floor_wood_small_dark:0:0:0:2
+    dwellings attic
+    text Straw pallets for peddlers and anyone else with a few pennies: cheap, and warm enough.
+    finish boards floor_wood_large_dark 2 Dark boards
+end
+
+room stables
+    name Stables
+    cost 8
+    colour 8b6a3e
+    floor floor_dirt_small_weeds:0:0:0:2
+    dwellings armoury vault
+    text Stalls, hay and water for travellers' horses and mules: it pays well, but it smells. A
+    text stable lad's barrow mucks out; a wall and a door keep the smell from the common room.
+    finish straw floor_dirt_large 1 Swept earth
+    finish cobbles floor_tile_large_rocks 2 Cobbles
+end
+
+room yard
+    name Yard and garden
+    cost 4
+    colour 7fae4e
+    floor village/grass
+    dwellings greenhouse
+    text Open to the sky: the well, the vegetable patch, the herb bed, a water trough and room for
+    text a maypole. Vegetables grow faster with a little muck from the stables.
+    finish path floor_dirt_large 1 Beaten path
+    finish cobbles floor_tile_large_rocks 2 Cobbles
+end
+
+room bathhouse
+    name Bathhouse
+    cost 12
+    colour 4f9da6
+    floor floor_tile_small:0:0:0:2
+    dwellings bathroom
+    text Wooden tubs and a copper to heat the water: the quarry dust comes off here.
+    finish flags floor_tile_large 2 Flagstones
+    finish planks floor_wood_small:0:0:0:2 2 Duckboards
+end
+
+room alley
+    name Skittle alley
+    cost 10
+    colour a5564a
+    floor floor_wood_small:0:0:0:2
+    dwellings studio trophy-room
+    text Skittle lanes and a draughts table for the bored. Loud: keep it away from the chambers
+    text and the quiet room.
+    finish dark floor_wood_large_dark 3 Dark boards
+    finish flags floor_tile_large 2 Flagstones
+end
+
+room parlour
+    name Quiet room
+    cost 12
+    colour 8a6fb0
+    floor floor_wood_large_dark
+    dwellings chapel library study observatory laboratory
+    text A quiet room upstairs: a prayer corner for the pilgrims, books and reading desks for the
+    text scholars, and a cabinet of curiosities.
+    finish planks floor_wood_small:0:0:0:2 2 Narrow planks
+    finish flags floor_tile_large 2 Flagstones
+end
+
+room brewhouse
+    name Brewhouse
+    cost 14
+    colour b07a3a
+    floor floor_tile_large
+    text A brewer's mash tun and malt sacks: best ale for the bar, from well water. Open it at the
+    text market (a brewer's licence).
+    finish earth floor_dirt_large 1 Beaten earth
+    finish tiles floor_tile_small:0:0:0:2 2 Small tiles
+end
+
+# ---------- needs ----------
+
+need Thirst
+    name Thirst
+    urgent 50
+end
+
+need Hunger
+    name Hunger
+    urgent 55
+end
+
+need Rest
+    name Rest
+    urgent 60
+end
+
+need Grime
+    name Grime
+    urgent 60
+end
+
+need Boredom
+    name Boredom
+    urgent 55
+end
+
+# A horse to water, stable and feed: travellers want it seen to before themselves.
+need Horse
+    name Stabling
+    urgent 50
+end
+
+# A peddler's mule or a carter's pony: a drink and a nosebag, not a stall.
+need Mule
+    name Fodder
+    urgent 50
+end
+
+need Prayer
+    name Prayer
+    urgent 55
+end
+
+# ---------- furniture and stations ----------
+# Model hints: KayKit's dungeon furniture, and village/: pieces of Kenney's Fantasy Town, Nature,
+# Graveyard, Survival and Prototype kits and KayKit's Medieval Hexagon pack (web/models/village/).
+
+unit bar
+    name Bar counter
+    in taproom
+    cost 50
+    seats 3
+    model bar_straight_A bottle_A_green:0.15:-0.02:0:1:0.25 bottle_C_brown:-0.12:0:0:1:0.25
+    text Ale for the thirsty, and best ale once the brewhouse is brewing.
+end
+
+unit table
+    name Trestle table
+    in taproom
+    cost 20
+    seats 2
+    model table_medium chair:0:-0.32:0 chair:0:0.32:180 plate_food_A:0.05:0:0:1:0.25
+    text Pies while the oven has them, stew otherwise. Better near the fire pit, or the oven.
+end
+
+unit fire
+    name Fire pit
+    in taproom chamber parlour alley
+    cost 45
+    seats 0
+    model village/firepit:0:0:0:0.8
+    text An open fire in the middle of the room: warmth and cheer round it. Tables within two cells
+    text make a fireside.
+end
+
+unit hearth
+    name Kitchen range
+    in kitchen
+    cost 60
+    seats 0
+    model table_long_decorated_C
+    text Cooks stew from provisions while the door is open, and warms the rooms round it.
+end
+
+unit oven
+    name Bread oven
+    in kitchen
+    cost 55
+    seats 0
+    model village/chimney:-0.1:-0.12:0:0.9 table_small:0.3:0.28 plate_food_B:0.3:0.28:0:1:0.25
+    text Bakes pies from the garden's vegetables and the larder's provisions, at evening: they sell
+    text dearer than stew. Warm.
+end
+
+unit larder
+    name Larder
+    in kitchen cellar
+    cost 30
+    seats 0
+    model shelves_decorated
+    text Buys provisions from the carters, a few at a time.
+end
+
+unit kegs
+    name Keg rack
+    in cellar
+    cost 40
+    seats 0
+    model keg_decorated
+    text Taps a barrel whenever the bar runs low on ale.
+end
+
+unit pail
+    name Scullion's pail
+    in kitchen porch
+    cost 25
+    seats 0
+    model village/bucket-water:0.1:0.1 barrel_small:-0.2:-0.2:0:0.8
+    text A scullion scrubs the floors round it, for a small wage.
+end
+
+unit stairs
+    name Stairs up
+    in porch taproom
+    cost 40
+    seats 0
+    stairs                      # joins this cell to the one above
+    model stairs_wood:0:-0.5:0:0.66
+    text Opens the floor above: build the cell over it next.
+end
+
+unit pallet
+    name Straw pallets
+    in loft
+    cost 20
+    seats 2
+    model village/bedroll:-0.2:0.05:0:0.85 village/bedroll:0.2:0.05:0:0.85 village/hay:0:-0.36:0:0.5
+    text Two pallets on the straw: a cheap night.
+end
+
+unit bed
+    name Shared bed
+    in chamber
+    cost 30
+    seats 2
+    model bed_B_double
+    text A big bed for two strangers, as is the custom on the road.
+end
+
+unit featherbed
+    name Feather bed
+    in chamber
+    cost 45
+    seats 1
+    model bed_decorated
+    text A bed to oneself, and feathers: a better night for a better price. Needs feather beds
+    text (the market).
+end
+
+unit stool
+    name Bar stools
+    in taproom alley
+    cost 15
+    seats 0
+    model stool_round:-0.25:0.1 stool_round:0:0.1 stool_round:0.25:0.1
+    text Next to a bar, the regulars settle in: drinks go down faster.
+end
+
+unit lantern
+    name Lantern
+    cost 15
+    seats 0
+    model village/lantern-candle
+    text Cheer and a little warmth round it, in any room. Two by the prayer corner light the
+    text prayers.
+end
+
+unit flowers
+    name Flower tub
+    cost 12
+    seats 0
+    model village/planter:0:0:0:0.6 village/flower-red:-0.08:0:0:0.8:0.06 village/flower-yellow:0.08:0.06:0:0.8:0.06 village/flower-purple:0:-0.08:0:0.8:0.06
+    text Cheer round it, and the smell of the stables a little weaker. Stands anywhere.
+end
+
+unit strewing
+    name Strewing herbs
+    in porch taproom chamber loft stables bathhouse alley parlour
+    cost 20
+    seats 0
+    model bucket village/flower-purple:0:0:0:0.7:0.14 village/bush:0.25:0.22:0:0.45:0.05
+    text Lavender and rue from the herb bed: they sweeten the air round them while the herb bed
+    text keeps them fresh. Beside a tub, a herb bath.
+end
+
+unit banner
+    name Garrison banner
+    in porch taproom alley
+    cost 25
+    seats 0
+    model post banner_shield_green:0:-0.05
+    text The garrison's colours: cheer for two cells round. Soldiers at a table beside it drink to
+    text the king.
+end
+
+unit stall
+    name Horse stall
+    in stables
+    cost 35
+    seats 2
+    model village/fence:0:-0.4:0:1:0 village/horse:0.05:0.05:0:0.85 village/hay:-0.32:-0.22:0:0.45 bucket:0.36:0.3
+    text Stabling for a night, with hay from the hayrick. Pays well, but smells: a stable lad's
+    text barrow beside it keeps it clean and quick.
+end
+
+unit posthorse
+    name Post horses
+    in stables
+    cost 80
+    seats 1
+    model village/fence:0:-0.4:0:1:0 village/horse:0:0:0:1 village/lantern-candle:0.38:-0.3:0:0.7
+    text A fresh horse for a royal messenger in a hurry, at a royal price. Needs the royal post
+    text (the market).
+end
+
+unit hayrick
+    name Hayrick
+    in stables yard
+    cost 30
+    seats 0
+    model village/hay-stack:0:-0.1 village/hay:0.12:0.3:30:0.8
+    text Buys hay from the farms for the stalls, a few bales at a time.
+end
+
+unit barrow
+    name Stable lad's barrow
+    in stables yard
+    cost 25
+    seats 0
+    model village/wheelbarrow:0:0:30:0.9
+    text A stable lad mucks out round it at evening, for a small wage.
+end
+
+unit trough
+    name Water trough
+    in yard stables
+    cost 20
+    seats 2
+    model village/barrel-open:-0.15:-0.05:0:1.25:-0.04 village/bucket-water:0.27:0.24:0:0.75
+    text A drink for a peddler's mule or a carter's pony: cheap, and quick.
+end
+
+unit well
+    name Well
+    in yard
+    cost 40
+    seats 0
+    model village/well:0:0:0:0.85
+    text Draws water for the garden, the copper and the brewhouse, day and night, for nothing.
+end
+
+unit vegpatch
+    name Vegetable patch
+    in yard
+    cost 20
+    seats 0
+    model village/rows:0:0:0:0.92:0.05 village/cabbage:-0.25:-0.22:0:0.35:0.05 village/carrot:0.05:-0.22:0:0.4:0.05 village/pumpkin:0.28:-0.2:0:0.4:0.05 village/cabbage:-0.25:0.24:0:0.35:0.05 village/turnip:0.05:0.24:0:0.4:0.05 village/carrot:0.28:0.24:0:0.4:0.05
+    text Grows vegetables for the bread oven, with well water; faster where there is a little muck.
+end
+
+unit herbbed
+    name Herb bed
+    in yard
+    cost 20
+    seats 0
+    model village/rows:0:0:90:0.8:0.05 village/flower-purple:-0.22:-0.2:0:1:0.05 village/bush:0.2:-0.18:0:0.6:0.05 village/flower-purple:0:0.05:0:1:0.05 village/bush:-0.2:0.25:0:0.6:0.05 village/flower-yellow:0.22:0.22:0:1:0.05
+    text Grows lavender and rue, with well water, for the strewing herbs.
+end
+
+unit tree
+    name Old oak
+    in yard
+    cost 30
+    seats 0
+    model village/tree:0:0:0:0.9
+    text Shade on the green: a little cheer round it.
+end
+
+unit washstand
+    name Washstand
+    in porch bathhouse chamber
+    cost 15
+    seats 1
+    model table_small bucket:0:0:0:0.6:0.25
+    text A basin and a rag: a quick, cheap wash.
+end
+
+unit tub
+    name Wooden tub
+    in bathhouse
+    cost 50
+    seats 1
+    model barrel_large_decorated:0:0:0:1.1:-0.3 bucket:0.35:0.3
+    text A long soak in hot water from the copper. Beside the copper, in a warm room: a steam room.
+end
+
+unit copper
+    name Copper
+    in bathhouse kitchen
+    cost 45
+    seats 0
+    model barrel_large:0:0:0:0.9 torch_lit:-0.2:0.28 torch_lit:0.2:0.28
+    text Heats well water for the tubs at evening, for a little silver: warmth round it.
+end
+
+unit skittles
+    name Skittle lane
+    in alley
+    cost 40
+    seats 3
+    model table_long:0:0:90:1:-0.2 candle:0.3:0:0:0.9:0.05 candle:0.36:-0.05:0:0.9:0.05 candle:0.36:0.05:0:0.9:0.05 candle:0.42:-0.1:0:0.9:0.05 candle:0.42:0:0:0.9:0.05 candle:0.42:0.1:0:0.9:0.05 barrel_small:-0.36:0:0:0.35:0.05
+    text Nine pins and a ball for the bored: cheap and loud. Two side by side make an alley.
+end
+
+unit draughts
+    name Draughts table
+    in alley parlour
+    cost 55
+    seats 2
+    model table_small_decorated_B chair:0:-0.25:0 chair:0:0.25:180
+    text A long game of draughts: dearer, quieter. Wagers rise with the inn's reputation.
+end
+
+unit stage
+    name Minstrels' stage
+    in taproom alley yard
+    cost 60
+    seats 4
+    model village/stall-red:0:-0.05:90:0.85 stool_round:0:0.05 barrel_small:0.3:0.3:0:0.6
+    text A song for the bored, and cheer round it. Within two cells of the bar, a sing-song.
+end
+
+unit bookcase
+    name Bookcase
+    in parlour
+    cost 35
+    seats 0
+    model bookcase_double_decoratedA:0:-0.4
+    text Books soak up the noise round them. Two by a reading desk make a quiet corner.
+end
+
+unit desk
+    name Reading desk
+    in parlour
+    cost 40
+    seats 1
+    model table_small chair:0:0.2:180 book_brown:0:0:0:1:0.27 candle_lit:0.08:-0.06:0:0.6:0.25
+    text A quiet read for the bored: scholars love it. Tales for the market.
+end
+
+unit altar
+    name Prayer corner
+    in parlour
+    cost 50
+    seats 2
+    model village/altar:0:-0.15:0:0.8 village/candles:0.28:-0.15:0:0.6:0.32
+    text A place for pilgrims to pray on their way to the church. Lanterns or candles round it and
+    text pews before it help.
+end
+
+unit pew
+    name Pew
+    in parlour
+    cost 20
+    seats 0
+    model village/pew:0:-0.12:0:0.85 village/pew:0:0.28:0:0.85
+    text Somewhere to kneel. Two by the prayer corner fill the alms box, once there is one.
+end
+
+unit candles
+    name Candle stand
+    cost 15
+    seats 0
+    model column:0:0:0:0.7 candle_triple:0:0:0:1:0.245
+    text Cheer and a little warmth round it, in any room. Two by the prayer corner light the
+    text prayers.
+end
+
+unit curios
+    name Cabinet of curiosities
+    in parlour
+    cost 55
+    seats 2
+    model table_small:0:0:0:1.6 ruins/Pot1:-0.1:0.04:0:0.85:0.4 ruins/Pot3:0.12:-0.06:0:0.95:0.4 ruins/Pot2_Broken:0.06:0.13:0:1:0.4 ruins/Skull:-0.12:-0.12:20:0.9:0.4
+    text Old pots, bones and coins from the fields round the village, labelled: a look for the
+    text bored. With a reading desk and a bookcase near, the Archaeological Society meets here.
+end
+
+unit mashtun
+    name Mash tun
+    in brewhouse
+    cost 80
+    seats 0
+    model barrel_large_decorated:-0.12:-0.08:0:0.9 village/sack:0.3:0.25:30:0.8 village/sack:0.32:-0.22:0:0.8
+    text Brews best ale from well water and malt, at evening, for a little silver.
+end
+
+unit maypole
+    name Maypole
+    in yard
+    cost 150
+    seats 0
+    model post:0:0:0:1.5 banner_shield_green:0:0.04:0:0.55:0.85 village/flower-red:-0.18:0.12:0:1:0.05 village/flower-yellow:0.18:0.12:0:1:0.05 village/flower-purple:0:-0.18:0:1:0.05
+    text Ribbons and a crown of flowers: a great deal of cheer round it. A stage within two cells
+    text means dancing on the green. Needs a maypole (the market).
+end
+
+# ---------- services ----------
+# A unit gives the first service listed here that meets the guest's need and that it can give.
+
+service bestale
+    name A mug of best ale
+    at bar
+    need Thirst 80
+    global BestAle in 1
+    price 6
+    time 6
+    map Noise out 2 radius 1
+end
+
+service ale
+    name A mug of ale
+    at bar
+    need Thirst 60
+    global Ale in 1
+    price 3
+    time 4
+    map Noise out 3 radius 1
+end
+
+service pie
+    name A slice of pie
+    at table
+    need Hunger 90
+    global Pies in 1
+    price 7
+    time 10
+    map Noise out 1
+end
+
+service stew
+    name A bowl of stew
+    at table
+    need Hunger 70
+    global Stew in 1
+    price 5
+    time 8
+    map Noise out 1
+end
+
+service pallet
+    name A pallet in the hayloft
+    at pallet
+    need Rest 80
+    price 3
+    time 45
+end
+
+service bed
+    name Half a bed
+    at bed
+    need Rest 90
+    price 6
+    time 50
+end
+
+service featherbed
+    name A feather bed
+    at featherbed
+    need Rest 100
+    price 10
+    time 40
+end
+
+service rinse
+    name A wash at the basin
+    at washstand
+    need Grime 45
+    price 2
+    time 6
+    map Dirt out 0.5
+end
+
+service soak
+    name A hot soak
+    at tub
+    need Grime 90
+    global HotWater in 1
+    price 7
+    time 25
+end
+
+service song
+    name A song
+    at stage
+    need Boredom 65
+    price 3
+    time 20
+    map Noise out 1.5 radius 1
+    map Cheer out 1 radius 1
+end
+
+service skittles
+    name A game of skittles
+    at skittles
+    need Boredom 60
+    price 4
+    time 18
+    map Noise out 2 radius 1
+end
+
+service draughts
+    name A game of draughts
+    at draughts
+    need Boredom 85
+    price 7
+    time 25
+    map Noise out 0.5
+end
+
+service read
+    name A quiet read
+    at desk
+    need Boredom 75
+    price 5
+    time 30
+end
+
+service curios
+    name A look at the curiosities
+    at curios
+    need Boredom 65
+    price 5
+    time 15
+end
+
+service prayer
+    name A prayer
+    at altar
+    need Prayer 80
+    price 3
+    time 20
+end
+
+service remount
+    name A fresh horse
+    at posthorse
+    need Horse 100
+    global Fodder in 1
+    price 14
+    time 4
+end
+
+service stabling
+    name Stabling for the night
+    at stall
+    need Horse 90
+    global Fodder in 1
+    price 5
+    time 6
+    map Muck out 2 radius 1
+end
+
+service watering
+    name A drink at the trough
+    at trough
+    need Mule 70
+    price 1
+    time 4
+    map Dirt out 0.3
+end
+
+# ---------- combos: furniture that works better together ----------
+# `near` counts units within a radius on the same level (diagonals count). Effects multiply the
+# services at the unit (`price`, `relief`, `time`) or add to the served guest's mood.
+
+combo fireside
+    name Fireside
+    text A table within two cells of the fire pit: pies and stew a fifth dearer, and guests warm
+    text to the place.
+    at table
+    near fire 2
+    price 1.2
+    mood 0.05
+    map Cheer out 0.2 radius 1
+end
+
+combo regulars
+    name Regulars' row
+    text Stools beside the bar: drinks go down a quarter faster, and a little dearer.
+    at bar
+    near stool 1
+    price 1.1
+    time 0.75
+end
+
+combo ovenfresh
+    name Fresh from the oven
+    text A table within two cells of the bread oven: the pies come hot, and fill a fifth more.
+    at table
+    near oven 2
+    relief 1.2
+    mood 0.03
+end
+
+combo colours
+    name Under the colours
+    text A table beside a garrison banner: soldiers drink to the king, and order a little more.
+    at table
+    near banner 1
+    price 1.1
+    mood 0.04
+end
+
+combo singsong
+    name Sing-song
+    text A bar within two cells of a minstrels' stage: the whole room joins in. Drinks dearer and
+    text quicker, and the word spreads (renown at the market).
+    at bar
+    near stage 2
+    price 1.15
+    time 0.8
+    mood 0.05
+    map Cheer out 0.3 radius 2
+end
+
+combo vespers
+    name Lit prayers
+    text Two lanterns or candle stands beside the prayer corner: deeper prayers, and the room
+    text glows.
+    at altar
+    near lantern,candles 1 2
+    relief 1.3
+    mood 0.1
+    map Cheer out 0.4 radius 2
+end
+
+combo congregation
+    name Full pews
+    text Two pews beside the prayer corner and an alms box (the market): the faithful give half as
+    text much again.
+    at altar
+    near pew 1 2
+    price 1.5
+end
+
+combo blessed
+    name A blessed house
+    text Once the parson has blessed the house (the market), a prayer corner is dearer, deeper and
+    text bright.
+    at altar
+    if global Blessed atLeast 1
+    price 1.25
+    relief 1.2
+    map Cheer out 0.8 radius 2
+end
+
+combo steam
+    name Steam room
+    text A tub beside the copper, in a warm room (warmth 3 or more): soaks take less time, and
+    text everyone comes out pink and pleased.
+    at tub
+    near copper 1
+    if map Warmth atLeast 3
+    time 0.7
+    mood 0.08
+end
+
+combo herbbath
+    name Herb bath
+    text A tub beside strewing herbs: lavender in the water. A fifth more relief, and happier
+    text bathers.
+    at tub
+    near strewing 1
+    relief 1.2
+    mood 0.06
+end
+
+combo quiet
+    name Quiet corner
+    text A reading desk with two bookcases beside it, where the noise is under 3: a deeper read
+    text and a happier reader.
+    at desk
+    near bookcase 1 2
+    if map Noise less 3
+    relief 1.3
+    mood 0.1
+end
+
+combo alley
+    name Skittle alley
+    text Two skittle lanes side by side draw a crowd: dearer games, merrier players, and more
+    text noise.
+    at skittles
+    near skittles 1
+    price 1.15
+    mood 0.05
+    map Noise out 1 radius 1
+end
+
+combo wagers
+    name Wagers on the board
+    text A draughts table once the inn's reputation is 40 or more: the wagers go up by half.
+    at draughts
+    if global Reputation atLeast 40
+    price 1.5
+end
+
+combo groomed
+    name A well-kept stable
+    text A stall or the post horses beside a stable lad's barrow: horses seen to faster, and a
+    text fifth dearer.
+    at stall posthorse
+    near barrow 1
+    price 1.2
+    time 0.7
+    mood 0.05
+end
+
+combo posting
+    name Posting house
+    text Post horses with a horse stall and a hayrick within two cells: the king's messengers pay a
+    text third more, and spread the word (renown at the market).
+    at posthorse
+    near stall 2
+    near hayrick 2
+    price 1.3
+    mood 0.08
+end
+
+combo quietbed
+    name A quiet night
+    text A shared bed or a feather bed where the noise is under 2: a deeper sleep.
+    at bed featherbed
+    if map Noise less 2
+    relief 1.2
+    mood 0.08
+end
+
+combo cosy
+    name Cosy corner
+    text A bed or pallets beside a flower tub or a lantern: guests settle in.
+    at bed featherbed pallet
+    near flowers,lantern 1
+    mood 0.06
+    map Cheer out 0.15
+end
+
+combo society
+    name The Archaeological Society
+    text A cabinet of curiosities with a reading desk and a bookcase within two cells, once the
+    text Society has its charter (the market): members meet over the finds. Dearer, merrier, and
+    text renown and tales.
+    at curios
+    near desk 2
+    near bookcase 2
+    price 1.5
+    relief 1.25
+    mood 0.1
+    map Cheer out 0.4 radius 2
+end
+
+combo dancing
+    name Dancing on the green
+    text A minstrels' stage within two cells of the maypole: the whole village dances. Songs half
+    text as dear again, and a great deal of cheer.
+    at stage
+    near maypole 2
+    price 1.5
+    relief 1.3
+    mood 0.1
+    map Cheer out 0.6 radius 2
+end
+
+# ---------- guests ----------
+
+guest farmhand
+    name Farmhand
+    weight 6
+    purse 15 40
+    stay 90 160
+    patience 25
+    need Thirst 0.9 45
+    need Hunger 0.6 30
+    need Rest 0.3 10
+    dislike map Noise greater 10 0.004
+    dislike map Dirt greater 18 0.004   # mud from the fields bothers nobody
+    dislike map Muck greater 8 0.003
+    like map Cheer greater 3 0.003
+    map Noise out 0.4
+    map Dirt out 0.05
+    model character-male-f
+end
+
+guest peddler
+    name Peddler
+    weight 3
+    purse 10 24
+    stay 70 130
+    patience 40
+    need Hunger 0.9 45
+    need Thirst 0.6 25
+    need Mule 0.35 25
+    need Rest 0.25 10
+    map Noise out 0.5
+    map Dirt out 0.2
+    model character-male-g
+end
+
+guest miller
+    name Miller
+    weight 2
+    if global Reputation atLeast 5
+    purse 25 60
+    stay 80 140
+    patience 30
+    need Hunger 0.9 40
+    need Thirst 0.8 30
+    need Boredom 0.3 10
+    dislike map Dirt greater 8 0.004
+    like map Cheer greater 2 0.003
+    map Noise out 0.6
+    map Dirt out 0.1
+    model character-male-b
+end
+
+guest merchant
+    name Travelling merchant
+    weight 3
+    if global Reputation atLeast 8
+    purse 40 100
+    stay 90 150
+    patience 30
+    need Horse 0.3 55
+    need Rest 0.7 30
+    need Hunger 0.5 30
+    need Thirst 0.6 20
+    dislike map Muck greater 6 0.005
+    dislike map Noise greater 8 0.004
+    like map Cheer greater 2 0.003
+    map Noise out 0.3
+    model character-male-d
+end
+
+guest soldier
+    name Soldier from the garrison
+    weight 3
+    if global Reputation atLeast 12
+    purse 20 55
+    stay 80 140
+    patience 30
+    need Thirst 1.3 55
+    need Hunger 0.6 30
+    need Boredom 0.5 30
+    like map Noise greater 3 0.002
+    dislike map Muck greater 10 0.003
+    map Noise out 1
+    map Dirt out 0.05
+    model character-soldier
+end
+
+guest quarryman
+    name Quarryman
+    weight 3
+    if global Reputation atLeast 15
+    purse 30 70
+    stay 100 170
+    patience 35
+    need Thirst 1.2 50
+    need Hunger 0.6 25
+    need Grime 0.4 40
+    need Rest 0.4 10
+    dislike map Dirt greater 20 0.004
+    like map Warmth greater 3 0.002
+    map Noise out 0.7
+    map Dirt out 0.25
+    model character-worker
+end
+
+guest bard
+    name Wandering bard
+    weight 2
+    if global Reputation atLeast 20
+    purse 10 35
+    stay 100 160
+    patience 35
+    need Boredom 0.6 40
+    need Thirst 0.9 30
+    need Hunger 0.5 30
+    need Rest 0.4 10
+    like map Cheer greater 2 0.003
+    map Cheer out 0.4 radius 1        # a bard cheers the room wherever she stands
+    map Noise out 0.5
+    model character-female-c
+end
+
+guest pilgrim
+    name Pilgrim
+    weight 2
+    if global Reputation atLeast 25
+    purse 20 50
+    stay 100 160
+    patience 40
+    need Prayer 0.5 40
+    need Hunger 0.5 30
+    need Rest 0.7 30
+    need Grime 0.2 30
+    dislike map Noise greater 6 0.006
+    dislike map Muck greater 4 0.004
+    like map Cheer greater 3 0.005
+    map Noise out 0.1
+    model character-female-a
+end
+
+guest scholar
+    name Scholar from the Academy
+    weight 2
+    if global Reputation atLeast 30
+    purse 40 100
+    stay 90 150
+    patience 25
+    need Boredom 0.7 30
+    need Rest 0.8 40
+    need Hunger 0.4 20
+    need Thirst 0.3 10
+    dislike map Noise greater 4 0.01
+    dislike map Muck greater 2 0.008
+    dislike map Dirt greater 6 0.006
+    like map Cheer greater 2 0.003
+    map Noise out 0.1
+    model character-female-e
+end
+
+guest messenger
+    name Royal messenger
+    weight 1.5
+    if global Reputation atLeast 40
+    purse 70 140
+    stay 60 100
+    patience 15
+    need Horse 1 60
+    need Rest 0.6 40
+    need Hunger 0.7 40
+    need Thirst 0.6 30
+    dislike map Muck greater 6 0.004
+    map Noise out 0.3
+    model character-knight
+end
+
+# ---------- the market: the incremental layer (idle.toml, params.toml, market.idle) ----------
+
+idle market
+    tick 0.25                            # seconds of the market per tick of the evening
+    share Silver                         # one purse for the inn and its market stall
+    share Produce                        # field hands bring vegetables to the inn's stores
+    feed Served served
+    feed Renown happy                    # a happy guest spreads the word
+    feed Renown angry -0.5               # an angry one unsays some of it
+    feed Renown combo singsong 0.25      # and everyone remembers a good sing-song
+    feed Renown service remount 0.5      # the king's messengers talk at court
+    feed Tales service song              # songs, tales and finds, written down
+    feed Tales service read
+    feed Tales service curios 0.5
+    feed Tales combo quiet 0.5
+    feed Tales combo society 0.5
+    feed Renown combo society 0.5
+    feed Alms service prayer
+    feed Alms combo vespers 0.5
+    feed Alms combo blessed 0.5
+    price ale 1 + 0.5 * Malting
+    price bestale 1 + 0.5 * Malting
+    price pie 1 + 0.4 * Flour
+    price stew 1 + 0.2 * Flour
+    price stabling 1 + 0.5 * Oats
+    price remount 1 + 0.3 * Oats
+    price soak 1 + 0.3 * Lavender
+    price skittles 1 + 0.3 * League
+    price draughts 1 + 0.3 * League
+    price prayer 1 + 0.5 * Relic
+    price curios 1 + 0.5 * Society
+    price * 1 + 0.05 * Legacy
+    price * 1 + 0.1 * Patronage + 0.1 * Warrant
+    price * 1 + 0.25 * marketday
+    arrive (1 + 0.25 * Signboard) * (1 + alestake)
+    arrive (1 + 0.25 * Criers) * (1 + 0.03 * Carrier) * (1 + 0.1 * Warrant)
+    patience 1 + 0.5 * Benches
+    patience 1 + 0.25 * Lanterns
+    unlock featherbed Featherbeds
+    unlock posthorse RoyalPost
+    unlock brewhouse Brewhouse
+    unlock maypole Maypole
+    unlock congregation AlmsBox
+    unlock society Society
+    boost fireside 1 + HarvestSongs
+    boost steam 1 + Lavender
+    boost herbbath 1 + Lavender
+    boost vespers 1 + 0.5 * Relic
+    boost quiet 1 + 0.5 * BalladBook
+    boost dancing 1 + Ribbons
+    boost singsong 1 + Ribbons
+    set Blessed blessed                  # the inn's global Blessed: 1 once the house is blessed
+    restart sell warrant                 # passing the inn on, or a royal warrant, starts the building over
+    away 1000 + 4000 * Strongbox + 5000 * Countinghouse + 5000 * Lombards   # silver time away can bring
+end
+
+# ---------- how it looks (read by the browser game, not by the engine) ----------
+
+look village
+    models kaykit gltf                   # web/models/kaykit/<name>.gltf: KayKit Dungeon Pack furniture
+    characters guests glb                # web/models/guests/<name>.glb: Kenney Mini Characters
+    wall village/wall-cross              # half-timbered walls (web/models/village/: Kenney Fantasy Town Kit)
+    window village/wall-window 3         # shuttered windows on some of the back walls
+    inner 0.55                           # inner walls and doors, at this part of a wall's height
+    door village/wall-doorway
+    level 6                              # how far apart the floors are drawn
+    entrance village/wall-door 1 0       # the front door, onto the green
+    background a9d4ef                    # a summer sky
+    ground 8cb85a                        # the village green
+    grid 7aa64b 86b257
+    edge 5f8a3a
+    light fff4dc 6f8f4a
+    loading Sweeping the doorstep
+    arrive comes in off the green
+    seeds wheatsheaf hayrick millpond maypole lantern barley cobble meadow orchard bellfry harvest tankard thatch crossroads
+    levelname Floor
+    idlename Market
+    help help.html
+    style style.css
+end

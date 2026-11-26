@@ -1,0 +1,213 @@
+# The Wheatsheaf's economy, in plain GlassBox. The units are declared in inn.inn.
+# Ale, BestAle, Stew, Pies, Provisions, Water, Produce, Herbs, Fodder and HotWater are global: the
+# inn's stores, kept in its account with Silver. Night is set by the phases (1 while the door is
+# open).
+
+# The keg rack taps a barrel when the bar runs low; every mug costs the inn a little silver.
+unitRule tap
+    appliesTo kegs
+    rate 2
+    global Night atLeast 1
+    global Ale less 12
+    global Silver in 0.6
+    global Ale out 1
+end
+
+# The larder buys provisions from the carters, a few at a time.
+unitRule restock
+    appliesTo larder
+    rate 4
+    global Provisions less 8
+    global Silver in 1.5
+    global Provisions out 3
+end
+
+# The kitchen range turns provisions into stew while the door is open, and warms the rooms nearby.
+unitRule cook
+    appliesTo hearth
+    rate 3
+    global Night atLeast 1
+    global Stew less 10
+    global Provisions in 1
+    global Stew out 2
+    map Warmth out 4 radius 2
+    map Noise out 0.5
+end
+
+# A range keeps some warmth even when it is not cooking.
+unitRule embers
+    appliesTo hearth
+    map Warmth out 1 radius 1
+end
+
+# The scullion scrubs the floors around the pail, for a small wage.
+unitRule scrub
+    appliesTo pail
+    global Night atLeast 1
+    global Silver in 0.05
+    map Dirt in 3 radius 2
+end
+
+# ---------- the well and the kitchen garden ----------
+
+# The well gives water for nothing, day and night, as fast as a bucket comes up.
+unitRule draw
+    appliesTo well
+    rate 2
+    global Water less 12
+    global Water out 2
+end
+
+# A vegetable patch grows on well water: one basket every six ticks.
+unitRule grow
+    appliesTo vegpatch
+    rate 6
+    global Produce less 16
+    global Water in 1
+    global Produce out 1
+end
+
+# ... and as much again where the stables' muck has reached it (2 or more): manure.
+unitRule manure
+    appliesTo vegpatch
+    rate 6
+    map Muck atLeast 2
+    global Produce less 16
+    global Produce out 1
+    map Muck in 0.5
+end
+
+# The herb bed grows lavender and rue on well water.
+unitRule herbs
+    appliesTo herbbed
+    rate 5
+    global Herbs less 12
+    global Water in 1
+    global Herbs out 1
+end
+
+# The bread oven bakes pies from the garden's vegetables and the larder's provisions at evening.
+unitRule bake
+    appliesTo oven
+    rate 4
+    global Night atLeast 1
+    global Pies less 8
+    global Produce in 2
+    global Provisions in 1
+    global Pies out 2
+    map Warmth out 2 radius 1
+end
+
+# ---------- the stables ----------
+
+# The hayrick buys hay from the farms for the stalls.
+unitRule hay
+    appliesTo hayrick
+    rate 4
+    global Fodder less 8
+    global Silver in 1.2
+    global Fodder out 3
+end
+
+# Horses in their stalls at evening: muck.
+unitRule stalls
+    appliesTo stall posthorse
+    global Night atLeast 1
+    map Muck out 0.25
+end
+
+# The stable lad mucks out round his barrow, for a small wage.
+unitRule muckout
+    appliesTo barrow
+    global Night atLeast 1
+    global Silver in 0.05
+    map Muck in 3 radius 2
+end
+
+# Strewing herbs sweeten the air round them while the herb bed keeps them fresh.
+unitRule strew
+    appliesTo strewing
+    global Herbs in 0.04
+    map Muck in 1.5 radius 1
+    map Cheer out 0.2
+end
+
+# ---------- the bathhouse and the brewhouse ----------
+
+# The copper heats well water for the tubs, and warms the room.
+unitRule heat
+    appliesTo copper
+    rate 2
+    global Night atLeast 1
+    global HotWater less 8
+    global Water in 1
+    global Silver in 0.2
+    global HotWater out 2
+    map Warmth out 1 radius 1
+end
+
+# The copper's fire burns all evening, hot water wanted or not.
+unitRule firebox
+    appliesTo copper
+    global Night atLeast 1
+    map Warmth out 0.8 radius 1
+end
+
+# The mash tun brews best ale from well water and malt.
+unitRule brew
+    appliesTo mashtun
+    rate 3
+    global Night atLeast 1
+    global BestAle less 10
+    global Water in 1
+    global Silver in 0.6
+    global BestAle out 2
+end
+
+# ---------- decor: warmth and cheer ----------
+
+# The fire pit: warmth and cheer, always.
+unitRule blaze
+    appliesTo fire
+    map Warmth out 1.5 radius 1
+    map Cheer out 0.4 radius 1
+end
+
+# A lantern or a candle stand: cheer and a little warmth round it.
+unitRule glow
+    appliesTo lantern candles
+    map Cheer out 0.6 radius 1
+    map Warmth out 0.2
+end
+
+# A flower tub: cheer, and a little of the stables' smell gone.
+unitRule bloom
+    appliesTo flowers
+    map Cheer out 0.4 radius 1
+    map Muck in 0.3
+end
+
+# The garrison's colours, and the old oak: a little cheer, further.
+unitRule flutter
+    appliesTo banner tree
+    map Cheer out 0.3 radius 2
+end
+
+# Books soak up the noise round them.
+unitRule hush
+    appliesTo bookcase
+    map Noise in 1 radius 1
+end
+
+# A stage with nobody on it still draws a hum at evening.
+unitRule tune
+    appliesTo stage
+    global Night atLeast 1
+    map Cheer out 0.3 radius 1
+end
+
+# The maypole: ribbons, flowers and the whole village round it.
+unitRule ribbons
+    appliesTo maypole
+    map Cheer out 1.2 radius 2
+end

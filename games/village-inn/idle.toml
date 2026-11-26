@@ -1,0 +1,8 @@
+# The Wheatsheaf's market stall: its incremental layer, an OpenIdle game (this is its game.toml).
+# It runs through the day, through pauses and while you are away; at evening, with the inn's
+# ticks. inn.inn's `idle` block says how it meets the inn.
+name = "The Wheatsheaf's market stall"
+description = "Stable lads, fiddlers, field hands, a cook's helper, ballad-sellers and almoners work for the inn while you are away; upgrades make the inn better and open the brewhouse, the post horses and the maypole; pass the inn on for legacy, and give up legacy for a royal warrant."
+scripts = ["market.idle"]
+tick = 1              # seconds
+offline_max = 28800   # eight hours of progress for time away
